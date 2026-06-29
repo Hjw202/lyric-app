@@ -1,0 +1,22 @@
+[Unit]
+Description=Lyric Speaker BLE Service
+After=bluetooth.service
+Requires=bluetooth.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=pi
+Group=bluetooth
+ExecStart=/opt/lyric-app/lyric_app ble
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lyric-ble
+
+# 环境变量
+Environment=DBUS_SESSION_BUS_ADDRESS=/run/dbus/system_bus_socket
+
+[Install]
+WantedBy=multi-user.target

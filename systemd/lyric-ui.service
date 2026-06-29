@@ -1,0 +1,23 @@
+[Unit]
+Description=Lyric Speaker UI Service
+After=lyric-ble.service
+Wants=lyric-ble.service
+After=pulseaudio.service
+
+[Service]
+Type=simple
+User=pi
+Group=pulse-access
+ExecStart=/opt/lyric-app/lyric_app ui
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lyric-ui
+
+# 环境变量
+Environment=DISPLAY=:0
+Environment=PULSE_SERVER=unix:/run/pulse/native
+
+[Install]
+WantedBy=multi-user.target

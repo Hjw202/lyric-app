@@ -1,0 +1,47 @@
+{
+  "ble": {
+    "lyric_service_uuid": "0000FFE0-0000-1000-8000-00805F9B34FB",
+    "lyric_char_uuid": "0000FFE1-0000-1000-8000-00805F9B34FB",
+    "control_service_uuid": "12345678-1234-1234-1234-123456789ABC",
+    "control_char_uuid": "12345678-1234-1234-1234-123456789ABD",
+    "adapter": "/org/bluez/hci0",
+    "device_name": "LyricSpeaker"
+  },
+  "display": {
+    "driver": "fbcon",
+    "fb_device": "/dev/fb0",
+    "x11_display": ":0",
+    "default_style": {
+      "font_size": 48,
+      "color": [0, 255, 0],
+      "bg_color": [0, 0, 0],
+      "font_name": null,
+      "line_spacing": 10,
+      "padding": 40
+    }
+  },
+  "audio": {
+    "presets": {
+      "rock": {
+        "module": "module-ladspa-sink",
+        "label": "rock"
+      },
+      "pop": {
+        "module": "module-ladspa-sink",
+        "label": "pop"
+      },
+      "classical": {
+        "module": "module-ladspa-sink",
+        "label": "classical"
+      },
+      "flat": {
+        "module": null,
+        "label": null
+      }
+    },
+    "default_volume": 70
+  },
+  "ipc": {
+    "socket_path": "/tmp/lyric.sock"
+  }
+}

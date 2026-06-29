@@ -1,0 +1,17 @@
+# 蓝牙歌词音箱 - Python 依赖
+
+# BLE 蓝牙外设
+bluez-peripheral>=0.3.0
+dbus-next>=0.2.3
+
+# 音频控制
+pulsectl>=23.5.0
+
+# 图形显示
+pygame>=2.5.0
+
+# 配置文件监听
+watchdog>=3.0.0
+
+# 打包工具
+pyinstaller>=6.0.0
