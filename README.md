@@ -5,10 +5,12 @@
 ## 功能特性
 
 - 🎵 **蓝牙歌词接收**：通过 BLE 接收手机音乐 App 推送的歌词
-- 📺 **全屏歌词显示**：使用 Pygame 渲染，支持自动换行和多种样式
+- 📺 **全屏歌词显示**：使用 Pygame 渲染，支持自动换行、文本缓存和脏矩形优化
 - 🎛️ **远程控制**：通过 BLE 控制通道实时修改歌词样式、切换音效、调节音量
 - 🔊 **音效管理**：支持多种预设音效（摇滚、流行、古典等）
-- 🔄 **进程分离**：BLE 和 UI 分离为两个独立进程，通过 Unix Socket 通信
+- 🔄 **进程分离**：BLE 和 UI 分离为两个独立进程，通过 Unix Socket 通信（含心跳检测和自动重连）
+- ⚙️ **配置热重载**：修改 `config.json` 后自动生效，无需重启服务
+- 📊 **结构化日志**：JSON 格式日志输出，支持日志轮转和性能指标记录
 - 🚀 **开机自启**：支持 systemd 服务，开机自动启动
 
 ## 系统要求
@@ -57,8 +59,16 @@ sudo usermod -a -G pulse-access $USER
 ### 2. 下载应用
 
 ```bash
-# 从发布页面下载最新版本
-wget https://github.com/your-repo/lyric-app/releases/latest/download/lyric-app-v1.0-arm64.tar.gz
+# 从 Gitee 克隆项目
+git clone https://gitee.com/scavenger-ghost/lyric-app.git
+cd lyric-app
+```
+
+或从发布页面下载打包好的版本：
+
+```bash
+# 下载最新版本（打包后提供）
+wget https://gitee.com/scavenger-ghost/lyric-app/releases/latest/download/lyric-app-v1.0-arm64.tar.gz
 
 # 解压
 tar -xzf lyric-app-v1.0-arm64.tar.gz
@@ -149,43 +159,52 @@ sudo systemctl status lyric-ui
 
 ## 配置文件说明
 
+配置文件支持**热重载**，修改后自动生效，无需重启服务。
+
 ```json
 {
   "ble": {
-    "lyric_service_uuid": "0000FFE0-...",  // 歌词服务 UUID
-    "lyric_char_uuid": "0000FFE1-...",     // 歌词特征 UUID
-    "control_service_uuid": "12345678-...", // 控制服务 UUID
-    "control_char_uuid": "12345678-...",    // 控制特征 UUID
+    "lyric_service_uuid": "0000FFE0-0000-1000-8000-00805F9B34FB",  // 歌词服务 UUID
+    "lyric_char_uuid": "0000FFE1-0000-1000-8000-00805F9B34FB",     // 歌词特征 UUID
+    "control_service_uuid": "12345678-1234-1234-1234-123456789ABC", // 控制服务 UUID
+    "control_char_uuid": "12345678-1234-1234-1234-123456789ABD",    // 控制特征 UUID
     "adapter": "/org/bluez/hci0",         // 蓝牙适配器路径
     "device_name": "LyricSpeaker"          // 蓝牙设备名称
   },
   "display": {
     "driver": "fbcon",                     // 显示驱动 (fbcon/x11)
     "fb_device": "/dev/fb0",               // Framebuffer 设备
+    "x11_display": ":0",                   // X11 显示地址（driver=x11 时使用）
     "default_style": {
       "font_size": 48,                     // 字体大小
       "color": [0, 255, 0],               // 文字颜色 (RGB)
       "bg_color": [0, 0, 0],              // 背景颜色 (RGB)
+      "font_name": null,                   // 字体路径（null 为自动检测）
       "line_spacing": 10,                  // 行间距
       "padding": 40                        // 边距
     }
   },
   "audio": {
     "presets": {                           // 音效预设
-      "rock": {...},
-      "pop": {...},
-      "classical": {...},
-      "flat": {...}
+      "rock": { "module": "module-ladspa-sink", "label": "rock" },
+      "pop": { "module": "module-ladspa-sink", "label": "pop" },
+      "classical": { "module": "module-ladspa-sink", "label": "classical" },
+      "flat": { "module": null, "label": null }
     },
     "default_volume": 70                   // 默认音量 (0-100)
   },
   "ipc": {
     "socket_path": "/tmp/lyric.sock"       // Unix Socket 路径
+  },
+  "logging": {
+    "file": "/tmp/lyric-app.log"           // 日志文件路径
   }
 }
 ```
 
 ## 日志查看
+
+日志采用 JSON 结构化格式，支持日志轮转（10MB/份，保留 5 份）。
 
 ```bash
 # 查看 BLE 服务日志
@@ -194,8 +213,11 @@ journalctl -u lyric-ble -f
 # 查看 UI 服务日志
 journalctl -u lyric-ui -f
 
-# 查看应用日志文件
-tail -f /tmp/lyric-app.log
+# 查看 BLE 应用日志文件
+tail -f /tmp/lyric-ble.log
+
+# 查看 UI 应用日志文件
+tail -f /tmp/lyric-ui.log
 ```
 
 ## 开发说明
@@ -204,7 +226,7 @@ tail -f /tmp/lyric-app.log
 
 ```bash
 # 克隆项目
-git clone https://github.com/your-repo/lyric-app.git
+git clone https://gitee.com/scavenger-ghost/lyric-app.git
 cd lyric-app
 
 # 创建虚拟环境
@@ -288,5 +310,4 @@ MIT License
 
 ## 联系方式
 
-- 问题反馈：GitHub Issues
-- 邮箱：your-email@example.com
+- 问题反馈：[Gitee Issues](https://gitee.com/scavenger-ghost/lyric-app/issues)

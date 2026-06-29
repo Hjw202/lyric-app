@@ -1,6 +1,21 @@
 
 # 蓝牙歌词音箱软件 – 项目开发计划
 
+## 项目状态
+
+| 阶段 | 状态 | 备注 |
+|------|------|------|
+| 项目骨架 + IPC | ✅ 已完成 | Unix Socket 双向通信，支持心跳检测和自动重连 |
+| BLE 模块 | ✅ 已完成 | 自动重试、连接状态监控、统计信息 |
+| 显示模块 | ✅ 已完成 | 文本缓存、脏矩形更新、中文字体自动检测 |
+| 命令处理 | ✅ 已完成 | JSON 命令解析与分发 |
+| 音效控制 | ⚠️ 基础完成 | 音量控制已实现，均衡器预设加载为 TODO |
+| 配置管理 | ✅ 已完成 | watchdog 热重载 + 变更通知 |
+| 日志系统 | ✅ 已完成 | 结构化 JSON 日志 + 性能指标 |
+| systemd 服务 | ✅ 已完成 | lyric-ble / lyric-ui 两个服务单元 |
+| 安装脚本 | ✅ 已完成 | install.sh |
+| PyInstaller 打包 | ✅ 已完成 | lyric_app.spec |
+
 ## 1. 项目目标
 
 开发一个运行在 Linux（ARM）开发板上的应用软件，实现以下核心功能：
@@ -47,27 +62,32 @@
 - **lyric-ble 进程**：负责与手机蓝牙通信，提供两个 BLE 特征（歌词接收 + 控制命令），将收到的所有数据通过 Socket 转发给 `lyric-ui`。
 - **lyric-ui 进程**：从 Socket 读取数据，区分歌词文本和 JSON 命令，更新 Pygame 显示界面，并调用 PulseAudio 音效接口。
 
-## 5. 项目文件结构（交付前源码）
+## 5. 项目文件结构（实际交付）
 
 ```
 lyric-app/
 ├── lyric_app.py              # 统一入口，根据命令行参数启动 ble 或 ui
 ├── modules/
 │   ├── __init__.py
-│   ├── ble_server.py         # BLE 服务注册、歌词/控制特征处理
-│   ├── display.py            # Pygame 初始化、歌词渲染、样式更新
+│   ├── ble_server.py         # BLE 服务注册、歌词/控制特征处理（含自动重试）
+│   ├── display.py            # Pygame 初始化、歌词渲染、样式更新（含文本缓存）
 │   ├── cmd_handler.py        # 命令解析与分发（调用 display 和 audio）
-│   └── audio_effects.py      # 音效预设管理（调用 pulsectl）
+│   ├── audio_effects.py      # 音效预设管理（调用 pulsectl）
+│   └── config_manager.py     # 配置管理器（watchdog 热重载 + 变更通知）
 ├── config/
 │   └── config.json           # 默认样式、UUID 配置、音效预设名
 ├── utils/
 │   ├── __init__.py
-│   └── ipc.py                # Unix Socket 服务端/客户端封装
+│   ├── ipc.py                # Unix Socket 服务端/客户端封装（含心跳检测）
+│   └── logger.py             # 结构化日志 + 性能指标记录
 ├── systemd/
 │   ├── lyric-ble.service
 │   └── lyric-ui.service
 ├── requirements.txt
 ├── install.sh                # 安装脚本
+├── lyric_app.spec            # PyInstaller 打包配置
+├── CLAUDE.md                 # Claude Code 开发指南
+├── plan.md                   # 本文件
 └── README.md
 ```
 
@@ -85,7 +105,12 @@ lyric-app/
   1. **歌词服务** (UUID 来自 `config.json`，默认 `0000FFE0-...`)，特征 UUID `0000FFE1-...`，支持 **Write** 和 **WriteWithoutResponse**。收到数据时解码为 UTF-8 字符串，通过 Socket 发送（每条文本后跟 `\n`）。
   2. **控制服务** (UUID 自定义，如 `12345678-...`)，特征 UUID `12345678-...`，同样支持写入。收到数据时直接作为一整行通过 Socket 转发（可能是 JSON 命令）。
 - 维持 BLE 广播，自动处理连接/断开，断开后自动重启广播。
-- 初始化时创建 Unix Socket 服务端（路径 `/tmp/lyric.sock`），并接受连接。
+
+**已实现的增强功能**：
+- `BLEState` 状态机（IDLE → STARTING → RUNNING → ERROR → STOPPING）
+- 自动重试机制（可配置 `max_retries` 和 `retry_delay`，默认无限重试）
+- `BLEStats` 统计信息（连接数、歌词/命令接收数、错误数、重启次数）
+- `get_status()` 方法返回服务状态和统计信息
 
 **技术要求**：
 - 全部使用 `asyncio` 驱动，因为 `bluez-peripheral` 依赖异步。
@@ -101,10 +126,17 @@ lyric-app/
   - `get_current_style() -> dict` – 返回当前样式（用于保存）
 - 主循环（`main_loop()`）在 UI 进程中被调用，持续刷新画面，从内部队列获取最新歌词并渲染。
 
+**已实现的增强功能**：
+- `TextCache` LRU 缓存（最多 200 条），避免重复渲染相同文本
+- 脏矩形更新：歌词变化时只重绘变化区域，样式变化时全屏重绘
+- 双缓冲 + 硬件加速（`DOUBLEBUF | HWSURFACE`）
+- 中文字体自动检测：依次尝试 wqy-microhei → DroidSansFallback → NotoSansCJK
+- 线程安全的样式锁（`_style_lock`）
+
 **渲染要求**：
 - 歌词居中显示，支持多行自动换行（针对长文本）。
 - 默认样式从 `config.json` 加载。
-- 无歌词时显示空白或默认提示（如“等待连接...”）。
+- 无歌词时显示空白或默认提示（如”等待连接...”）。
 
 ### 6.4 命令处理模块 `cmd_handler.py`
 **功能**：
@@ -122,12 +154,36 @@ lyric-app/
 - `set_volume(level: int)`：设置音量值（0-100），调用 `pulsectl` 的 volume 设置接口。
 - 所有模块加载/卸载需处理好异常，避免 PulseAudio 状态混乱。
 
+**待完善**：
+- `_load_equalizer_module()` 中 LADSPA 均衡器的实际加载逻辑需要根据目标硬件配置具体参数（插件路径、控制端口等），当前为 TODO 状态。
+
 ### 6.6 IPC 通信模块 `utils/ipc.py`
 **提供**：
-- `create_server(sock_path)`：创建 Unix Socket 服务端，返回一个 `asyncio` 服务器对象，连接到来时接受并开始监听数据，每收到一条完整行（`\n` 分隔）调用回调函数。
-- `create_client(sock_path, on_data_callback)`：创建客户端，连接到已有的 Socket，监听数据并回调。
+- `IPCServer`：Unix Socket 服务端，支持多客户端连接，每收到一条完整行（`\n` 分隔）调用回调函数。
+- `IPCClient`：Unix Socket 客户端，监听数据并回调，支持指数退避重连（初始 2 秒，1.5 倍退避，最大 30 秒）。
 - 回调函数接受 `line: str`（已去除换行符）。
-- 需处理重连逻辑：如果连接失败，客户端应持续重试（间隔 2 秒），直到成功。
+
+**已实现的增强功能**：
+- 心跳检测（30 秒间隔）和客户端超时清理（60 秒无活动）
+- `IPCStats` 流量统计（收发消息数、字节数、连接数、错误数）
+- `broadcast()` 向所有客户端广播，自动清理断开的连接
+- `send_to_client()` 向指定客户端发送
+- 客户端发送队列（异步队列，最大 1000 条）
+
+### 6.7 配置管理模块 `modules/config_manager.py`
+**功能**：
+- `ConfigManager`：加载 JSON 配置文件，支持点号分隔的路径访问（如 `display.default_style.font_size`）
+- 使用 `watchdog` 监听配置文件变更，实现热重载
+- `ConfigChangeEvent` 变更事件，递归通知嵌套字典的变更
+- 监听器机制：BLE 和 UI 进程注册回调，配置变更时自动更新运行时状态
+- 全局单例模式：`init_config_manager()` / `get_config_manager()` / `cleanup_config_manager()`
+
+### 6.8 日志模块 `utils/logger.py`
+**功能**：
+- `StructuredFormatter`：JSON 格式日志输出，包含时间戳、级别、服务名、消息、异常信息
+- `MetricsLogger`：性能指标记录器，支持 `set_metric()` / `increment()` / `log_metrics()`
+- `setup_logger()`：配置日志记录器，支持控制台 + 文件输出（RotatingFileHandler，10MB 轮转，保留 5 份）
+- `LogContext`：上下文管理器，自动记录操作耗时
 
 ### 6.7 配置文件 `config/config.json`
 ```json
@@ -180,47 +236,49 @@ lyric-app/
 
 > 注意：Socket 客户端读取数据应在独立线程中运行，通过队列将歌词/命令传给主线程，保证 Pygame 主循环不阻塞。
 
-## 8. 实现步骤（建议按此顺序进行）
+## 8. 实现步骤
 
-1. **搭建项目骨架**  
+1. ✅ **搭建项目骨架**
    - 创建目录结构，编写 `lyric_app.py` 入口。
    - 编写 `config.json`。
-   - 编写 `utils/ipc.py` 并测试（用简单脚本模拟客户端/服务端通信）。
+   - 编写 `utils/ipc.py`（含心跳检测、流量统计、自动重连）。
 
-2. **实现 BLE 模块**  
-   - 编写 `ble_server.py`，暂时只实现歌词服务，能接收手机 App 推送的歌词并打印。
-   - 集成 Socket 发送，验证歌词能到达 Socket 客户端。
+2. ✅ **实现 BLE 模块**
+   - 编写 `ble_server.py`，实现歌词/控制两个 GATT 服务。
+   - 集成 Socket 广播，自动重试机制。
 
-3. **实现显示模块**  
-   - 编写 `display.py`，能全屏显示静态文本，样式可配置。
-   - 编写一个测试 UI 入口，从 Socket 客户端接收文本并显示。
+3. ✅ **实现显示模块**
+   - 编写 `display.py`，全屏显示 + 文本缓存 + 脏矩形更新。
+   - 中文字体自动检测，双缓冲硬件加速。
 
-4. **实现命令处理**  
-   - 编写 `cmd_handler.py`，解析 JSON 并调用 display 和 audio 的桩函数。
-   - 将命令处理逻辑集成到 UI 进程中。
+4. ✅ **实现命令处理**
+   - 编写 `cmd_handler.py`，解析 JSON 并调用 display 和 audio。
+   - 支持 style / effect / volume 三种命令。
 
-5. **实现音效控制**  
-   - 编写 `audio_effects.py`，使用 `pulsectl` 加载均衡器预设。
-   - 测试音量调节。
+5. ⚠️ **实现音效控制**
+   - 编写 `audio_effects.py`，音量控制已实现。
+   - 均衡器预设加载需根据目标硬件配置（TODO）。
 
-6. **扩展 BLE 控制服务**  
-   - 在 `ble_server.py` 中添加控制特征，接收手机命令并转发给 UI。
+6. ✅ **配置管理与日志**
+   - 编写 `config_manager.py`，watchdog 热重载 + 变更通知。
+   - 编写 `utils/logger.py`，结构化 JSON 日志 + 性能指标。
 
-7. **完整集成与调试**  
-   - 在开发板实机运行，使用手机测试歌词显示、样式切换、音效切换。
-   - 处理长文本换行、异常断连、资源竞争等问题。
+7. ✅ **完整集成**
+   - BLE 和 UI 进程通过 Unix Socket 通信。
+   - 配置变更自动生效。
 
-8. **打包**  
-   - 配置 PyInstaller spec 文件，将入口 `lyric_app.py` 打包为单文件 `lyric_app`。
-   - 确保运行时能读取同目录下的 `config.json`。
-   - 生成最终可执行文件。
+8. ✅ **打包**
+   - 配置 PyInstaller spec 文件，打包为单文件可执行。
+   - 生成 `dist/lyric_app`。
 
-9. **编写 systemd 服务和安装脚本**  
+9. ✅ **systemd 服务和安装脚本**
    - 编写 `lyric-ble.service` 和 `lyric-ui.service`。
-   - 编写 `install.sh`，将 `lyric_app` 复制到 `/opt/lyric-app/`，配置文件复制到 `/etc/lyric-app/`，安装并启用服务。
+   - 编写 `install.sh`，自动化安装流程。
 
-10. **交付文档**  
+10. ✅ **交付文档**
     - `README.md`：系统要求、安装步骤、使用说明、配置文件释义。
+    - `CLAUDE.md`：开发指南。
+    - `plan.md`：本文件（项目计划与状态）。
 
 ## 9. 打包与交付说明
 
