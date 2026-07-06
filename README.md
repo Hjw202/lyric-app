@@ -245,6 +245,7 @@ python lyric_app.py ui
 
 ### 打包可执行文件
 
+#### 方式一：本地打包（Linux 系统）
 ```bash
 # 安装 PyInstaller
 pip install pyinstaller
@@ -254,6 +255,21 @@ pyinstaller --onefile --add-data "config/config.json:config" lyric_app.py
 
 # 生成的可执行文件在 dist/ 目录中
 ```
+
+#### 方式二：GitHub Actions 自动打包（推荐）
+1. 推送代码到 GitHub
+2. 在 Actions 标签页查看构建进度
+3. 构建完成后在 Releases 页面下载
+
+```bash
+# 创建 tag 触发发布
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+自动构建的文件：
+- `lyric_app_arm64` - ARM64 版本（树莓派 4/5 等）
+- `lyric_app_armhf` - ARM32 版本（树莓派 2/3 等）
 
 ## 故障排除
 

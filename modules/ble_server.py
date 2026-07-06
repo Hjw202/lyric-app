@@ -16,12 +16,12 @@ from enum import Enum
 
 from dbus_next.aio import MessageBus
 from bluez_peripheral.advert import Advertisement
-from bluez_peripheral.gatt import (
-    Service,
-    Characteristic,
-    CharacteristicFlags,
-    ServiceManager,
-)
+from bluez_peripheral.gatt import Service, Characteristic, CharacteristicWriteMethod
+from bluez_peripheral.service import ServiceManager
+
+# Characteristic write flags (兼容不同版本)
+WRITE_FLAG = "write"
+WRITE_NO_RESPONSE_FLAG = "write-without-response"
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class LyricCharacteristic(Characteristic):
     def __init__(self, uuid: str, on_receive: Optional[Callable] = None, stats: Optional[BLEStats] = None):
         super().__init__(
             uuid=uuid,
-            flags=[CharacteristicFlags.WRITE, CharacteristicFlags.WRITE_WITHOUT_RESPONSE],
+            flags=[CharacteristicWriteMethod.WRITE, CharacteristicWriteMethod.WRITE_WITHOUT_RESPONSE],
         )
         self.on_receive = on_receive
         self.stats = stats
@@ -77,7 +77,7 @@ class ControlCharacteristic(Characteristic):
     def __init__(self, uuid: str, on_receive: Optional[Callable] = None, stats: Optional[BLEStats] = None):
         super().__init__(
             uuid=uuid,
-            flags=[CharacteristicFlags.WRITE, CharacteristicFlags.WRITE_WITHOUT_RESPONSE],
+            flags=[CharacteristicWriteMethod.WRITE, CharacteristicWriteMethod.WRITE_WITHOUT_RESPONSE],
         )
         self.on_receive = on_receive
         self.stats = stats
