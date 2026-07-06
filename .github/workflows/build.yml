@@ -40,74 +40,36 @@ jobs:
           name: lyric_app_arm64
           path: dist/lyric_app_arm64
 
-  build-armhf:
-    name: Build ARMHF (32-bit)
+  release:
+    name: Create Release
+    needs: [build-arm64]
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build binary in ARM32 container
-        run: |
-          docker buildx build \
-            --platform linux/arm/v7 \
-            --load \
-            -t lyric-builder-armhf \
-            -f Dockerfile.armhf .
-
-          docker create --name temp-armhf lyric-builder-armhf
-          mkdir -p dist
-          docker cp temp-armhf:/app/dist/lyric_app dist/lyric_app_armhf
-          docker rm temp-armhf
-
-      - name: Upload ARMHF artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: lyric_app_armhf
-          path: dist/lyric_app_armhf
-
-  release:
-    name: Create Release
-    needs: [build-arm64, build-armhf]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
 
       - name: Package release
         run: |
           chmod +x lyric_app_arm64/lyric_app_arm64
-          chmod +x lyric_app_armhf/lyric_app_armhf
 
           # ARM64 包
-          cd lyric_app_arm64
-          cp ../../config/config.json .
-          cp ../../install.sh .
-          cp -r ../../systemd .
+          mkdir -p release
+          cd release
+          cp ../lyric_app_arm64/lyric_app_arm64 .
+          cp ../config/config.json .
+          cp ../install.sh .
+          cp -r ../systemd .
           tar -czf ../lyric-app-${{ github.ref_name }}-arm64.tar.gz *
-          cd ..
-
-          # ARMHF 包
-          cd lyric_app_armhf
-          cp ../../config/config.json .
-          cp ../../install.sh .
-          cp -r ../../systemd .
-          tar -czf ../lyric-app-${{ github.ref_name }}-armhf.tar.gz *
           cd ..
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            lyric-app-${{ github.ref_name }}-arm64.tar.gz
-            lyric-app-${{ github.ref_name }}-armhf.tar.gz
+          files: lyric-app-${{ github.ref_name }}-arm64.tar.gz
           draft: false
           prerelease: false
           generate_release_notes: true
