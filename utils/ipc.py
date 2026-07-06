@@ -12,7 +12,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import Callable, Dict, Optional, Set, Any
+from typing import Callable, Dict, List, Optional, Set, Any
 from dataclasses import dataclass, field
 from collections import deque
 

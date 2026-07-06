@@ -75,23 +75,29 @@ def run_ble(config_path: str):
     # 创建 IPC 服务器
     ipc_server = IPCServer(socket_path)
 
+    # 创建事件循环（必须在定义回调之前）
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
     def on_lyric(text: str):
         """歌词数据回调"""
         logger.increment('lyrics_received')
-        logger.logger.debug(f"收到歌词: {text[:50]}...")
-        asyncio.run_coroutine_threadsafe(
-            ipc_server.broadcast(text),
-            loop
-        )
+        logger.logger.debug(f"收到歌词: {text[:50] if text else ''}...")
+        if loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                ipc_server.broadcast(text),
+                loop
+            )
 
     def on_command(text: str):
         """命令数据回调"""
         logger.increment('commands_received')
         logger.logger.debug(f"收到命令: {text}")
-        asyncio.run_coroutine_threadsafe(
-            ipc_server.broadcast(text),
-            loop
-        )
+        if loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                ipc_server.broadcast(text),
+                loop
+            )
 
     # 配置变更监听
     def on_config_change(event):
@@ -105,10 +111,6 @@ def run_ble(config_path: str):
 
     # 创建 BLE 服务器
     ble_server = BLEServer(ble_config, on_lyric, on_command)
-
-    # 创建事件循环
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
 
     # 信号处理
     shutdown_event = asyncio.Event()

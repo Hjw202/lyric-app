@@ -13,7 +13,6 @@ import logging
 import threading
 from typing import Dict, Optional, Tuple, List
 from queue import Queue, Empty
-from functools import lru_cache
 
 import pygame
 
@@ -273,7 +272,7 @@ class Display:
             hint_text = "等待连接..."
             hint_color = (128, 128, 128)
             hint_surface = self._render_text_cached(hint_text, hint_color)
-            hint_rect = hint_rect = hint_surface.get_rect(center=self.screen.get_rect().center)
+            hint_rect = hint_surface.get_rect(center=self.screen.get_rect().center)
             self.screen.blit(hint_surface, hint_rect)
             self._last_rendered_lines.append((hint_text, hint_surface, hint_rect))
 
