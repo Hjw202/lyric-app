@@ -282,18 +282,42 @@ lyric-app/
 
 ## 9. 打包与交付说明
 
+### 9.1 本地打包
+
 - 使用 **PyInstaller** 在 ARM 开发板上（或通过 QEMU 模拟）构建。
 - 打包命令：`pyinstaller --onefile --add-data "config/config.json:config" lyric_app.py`
-- 最终交付压缩包包含：
-  ```
-  lyric-app-v1.0-arm64.tar.gz
-  ├── lyric_app          # 可执行文件
-  ├── config.json        # 外部配置文件
-  ├── systemd/
-  │   ├── lyric-ble.service
-  │   └── lyric-ui.service
-  └── install.sh
-  ```
+
+### 9.2 GitHub Actions 自动打包（推荐）
+
+项目已配置 GitHub Actions CI/CD，支持自动构建 ARM64 和 ARM32 版本。
+
+**触发方式：**
+- 推送到 `main` 分支自动构建
+- 创建 `v*` tag 自动发布到 Releases
+
+**构建流程：**
+1. 使用 QEMU 模拟 ARM 架构
+2. 在 Docker 容器中安装依赖并打包
+3. 生成 ARM64 (`lyric_app_arm64`) 和 ARM32 (`lyric_app_armhf`) 可执行文件
+4. 创建 GitHub Release 并上传安装包
+
+**创建发布版本：**
+```bash
+git tag -a v1.0.0 -m "v1.0.0: 初始版本"
+git push origin v1.0.0
+```
+
+### 9.3 交付包内容
+
+```
+lyric-app-v1.0.0-arm64.tar.gz
+├── lyric_app          # 可执行文件
+├── config.json        # 外部配置文件
+├── systemd/
+│   ├── lyric-ble.service
+│   └── lyric-ui.service
+└── install.sh
+```
 
 ## 10. 关键约束与注意事项
 

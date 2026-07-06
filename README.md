@@ -59,19 +59,22 @@ sudo usermod -a -G pulse-access $USER
 ### 2. 下载应用
 
 ```bash
-# 从 Gitee 克隆项目
-git clone https://gitee.com/scavenger-ghost/lyric-app.git
+# 从 GitHub 克隆项目
+git clone https://github.com/Hjw202/lyric-app.git
 cd lyric-app
 ```
 
 或从发布页面下载打包好的版本：
 
 ```bash
-# 下载最新版本（打包后提供）
-wget https://gitee.com/scavenger-ghost/lyric-app/releases/latest/download/lyric-app-v1.0-arm64.tar.gz
+# 下载最新版本（ARM64）
+wget https://github.com/Hjw202/lyric-app/releases/latest/download/lyric-app-v1.0.0-arm64.tar.gz
+
+# 下载最新版本（ARM32）
+wget https://github.com/Hjw202/lyric-app/releases/latest/download/lyric-app-v1.0.0-armhf.tar.gz
 
 # 解压
-tar -xzf lyric-app-v1.0-arm64.tar.gz
+tar -xzf lyric-app-v1.0.0-arm64.tar.gz
 cd lyric-app
 ```
 
@@ -226,7 +229,7 @@ tail -f /tmp/lyric-ui.log
 
 ```bash
 # 克隆项目
-git clone https://gitee.com/scavenger-ghost/lyric-app.git
+git clone https://github.com/Hjw202/lyric-app.git
 cd lyric-app
 
 # 创建虚拟环境
@@ -326,4 +329,4 @@ MIT License
 
 ## 联系方式
 
-- 问题反馈：[Gitee Issues](https://gitee.com/scavenger-ghost/lyric-app/issues)
+- 问题反馈：[GitHub Issues](https://github.com/Hjw202/lyric-app/issues)
