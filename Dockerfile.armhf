@@ -6,17 +6,23 @@ WORKDIR /app
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    g++ \
     pkg-config \
     libdbus-1-dev \
     bluetooth \
+    libffi-dev \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 Python 依赖
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt pyinstaller
+# 安装 Python 依赖（跳过 bluez-peripheral，只在实际 ARM 设备上安装）
+RUN pip install --no-cache-dir \
+    pygame>=2.5.0 \
+    pulsectl>=23.5.0 \
+    watchdog>=3.0.0 \
+    pyinstaller
 
 # 复制项目文件
 COPY . .
 
-# 打包
+# 打包（不需要 bluez-peripheral 也能运行 UI）
 RUN pyinstaller --onefile --add-data "config/config.json:config" lyric_app.py
