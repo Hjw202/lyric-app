@@ -36,10 +36,58 @@
 
 ## 安装步骤
 
-### 1. 安装系统依赖
+### 方式一：使用预编译包（推荐）
+
+#### 1. 下载安装包
+
+访问 [Releases 页面](https://github.com/Hjw202/lyric-app/releases) 下载最新版本：
+
+- `lyric-app-v1.0.1-arm64.tar.gz` - 适用于 **64位系统**（树莓派 4/5、RK3588 等）
+- `lyric-app-v1.0.1-armhf.tar.gz` - 适用于 **32位系统**（树莓派 2/3 等）
+
+#### 2. 传输到开发板
 
 ```bash
-# Debian/Ubuntu 系统
+# 方法一：使用 scp
+scp lyric-app-v1.0.1-arm64.tar.gz pi@your-board:~/
+
+# 方法二：使用 U 盘拷贝
+# 方法三：在开发板上直接下载
+wget https://github.com/Hjw202/lyric-app/releases/latest/download/lyric-app-v1.0.1-arm64.tar.gz
+```
+
+#### 3. 解压安装包
+
+```bash
+cd ~
+tar -xzf lyric-app-v1.0.1-arm64.tar.gz
+cd lyric-app
+```
+
+#### 4. 运行安装脚本
+
+```bash
+sudo ./install.sh
+```
+
+安装脚本会自动完成：
+- ✅ 安装可执行文件到 `/opt/lyric-app/`
+- ✅ 安装配置文件到 `/etc/lyric-app/`
+- ✅ 安装 systemd 服务文件
+- ✅ 启用开机自启
+
+#### 5. 重启系统
+
+```bash
+sudo reboot
+```
+
+### 方式二：从源码编译安装
+
+#### 1. 安装系统依赖
+
+**Debian/Ubuntu/Raspberry Pi OS：**
+```bash
 sudo apt-get update
 sudo apt-get install -y \
     bluez \
@@ -49,73 +97,69 @@ sudo apt-get install -y \
     libsdl2-mixer-2.0-0 \
     libsdl2-ttf-2.0-0 \
     python3-pip \
-    python3-venv
-
-# 将用户添加到必要组
-sudo usermod -a -G bluetooth $USER
-sudo usermod -a -G pulse-access $USER
+    python3-venv \
+    git
 ```
 
-### 2. 下载应用
+**Arch Linux：**
+```bash
+sudo pacman -S bluez-utils pulseaudio sdl2 python-pip git
+```
+
+#### 2. 配置用户权限
 
 ```bash
-# 从 GitHub 克隆项目
+# 将当前用户添加到蓝牙和音频组
+sudo usermod -a -G bluetooth $USER
+sudo usermod -a -G pulse-access $USER
+
+# 登录后生效（或重启）
+newgrp bluetooth
+newgrp pulse-access
+```
+
+#### 3. 克隆项目
+
+```bash
 git clone https://github.com/Hjw202/lyric-app.git
 cd lyric-app
 ```
 
-或从发布页面下载打包好的版本：
+#### 4. 创建虚拟环境并安装依赖
 
 ```bash
-# 下载最新版本（ARM64）
-wget https://github.com/Hjw202/lyric-app/releases/latest/download/lyric-app-v1.0.0-arm64.tar.gz
+python3 -m venv venv
+source venv/bin/activate
 
-# 下载最新版本（ARM32）
-wget https://github.com/Hjw202/lyric-app/releases/latest/download/lyric-app-v1.0.0-armhf.tar.gz
-
-# 解压
-tar -xzf lyric-app-v1.0.0-arm64.tar.gz
-cd lyric-app
+pip install --upgrade pip
+pip install -r requirements.txt
 ```
 
-### 3. 安装应用
+#### 5. 手动启动测试
 
 ```bash
-# 运行安装脚本
-sudo ./install.sh
+# 终端1：启动 BLE 服务
+python lyric_app.py ble
+
+# 终端2：启动 UI 服务
+python lyric_app.py ui
 ```
 
-安装脚本会：
-- 将可执行文件复制到 `/opt/lyric-app/`
-- 将配置文件复制到 `/etc/lyric-app/`
-- 安装并启用 systemd 服务
-- 创建日志目录
-
-### 4. 配置
-
-编辑配置文件：
-```bash
-sudo nano /etc/lyric-app/config.json
-```
-
-主要配置项：
-- `ble.device_name`：蓝牙设备名称
-- `display.driver`：显示驱动（fbcon 或 x11）
-- `display.default_style`：默认歌词样式
-- `audio.default_volume`：默认音量
-
-### 5. 启动服务
+#### 6. 配置 systemd 自启
 
 ```bash
-# 启动 BLE 服务
-sudo systemctl start lyric-ble
+# 复制服务文件
+sudo cp systemd/lyric-ble.service /etc/systemd/system/
+sudo cp systemd/lyric-ui.service /etc/systemd/system/
 
-# 启动 UI 服务
-sudo systemctl start lyric-ui
+# 重新加载 systemd
+sudo systemctl daemon-reload
 
-# 查看状态
-sudo systemctl status lyric-ble
-sudo systemctl status lyric-ui
+# 启用服务
+sudo systemctl enable lyric-ble lyric-ui
+
+# 启动服务
+sudo systemctl start lyric-ble lyric-ui
 ```
 
 ## 使用说明
