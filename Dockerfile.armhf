@@ -15,11 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 Python 依赖（跳过 bluez-peripheral，只在实际 ARM 设备上安装）
-RUN pip install --no-cache-dir \
-    pygame>=2.5.0 \
-    pulsectl>=23.5.0 \
-    watchdog>=3.0.0 \
-    pyinstaller
+RUN pip install --no-cache-dir "pygame>=2.5.0" "pulsectl>=23.5.0" "watchdog>=3.0.0" pyinstaller
 
 # 复制项目文件
 COPY . .
