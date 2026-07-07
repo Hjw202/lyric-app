@@ -145,6 +145,18 @@ echo "设置服务运行用户: $REAL_USER"
 sed -i "s/^User=pi$/User=$REAL_USER/" "$SERVICE_DIR/lyric-ble.service"
 sed -i "s/^User=pi$/User=$REAL_USER/" "$SERVICE_DIR/lyric-ui.service"
 
+# 确保必要的组存在，并将用户加入
+for GRP in bluetooth pulse-access; do
+    if ! getent group "$GRP" > /dev/null 2>&1; then
+        echo "创建组: $GRP"
+        groupadd "$GRP"
+    fi
+    if ! id -nG "$REAL_USER" | grep -qw "$GRP"; then
+        echo "将用户 $REAL_USER 加入组 $GRP"
+        usermod -a -G "$GRP" "$REAL_USER"
+    fi
+done
+
 # 重新加载 systemd
 echo "重新加载 systemd..."
 systemctl daemon-reload
