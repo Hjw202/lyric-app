@@ -15,7 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --upgrade pip setuptools wheel
 
 # 安装 Python 依赖
-RUN pip install --no-cache-dir pygame watchdog pyinstaller
+COPY requirements.txt requirements-build.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-build.txt
 
 # 复制项目文件
 COPY . .

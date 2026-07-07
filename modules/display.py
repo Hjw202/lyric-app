@@ -20,32 +20,34 @@ logger = logging.getLogger(__name__)
 
 
 class TextCache:
-    """文本渲染缓存"""
+    """文本渲染缓存（线程安全）"""
 
     def __init__(self, max_size: int = 200):
         self._cache: Dict[str, pygame.Surface] = {}
         self._max_size = max_size
         self._access_order: List[str] = []
+        self._lock = threading.Lock()
 
     def get(self, key: str) -> Optional[pygame.Surface]:
-        if key in self._cache:
-            # 更新访问顺序
-            self._access_order.remove(key)
-            self._access_order.append(key)
-            return self._cache[key]
-        return None
+        with self._lock:
+            if key in self._cache:
+                self._access_order.remove(key)
+                self._access_order.append(key)
+                return self._cache[key]
+            return None
 
     def put(self, key: str, surface: pygame.Surface):
-        if len(self._cache) >= self._max_size:
-            # 移除最久未使用的
-            oldest = self._access_order.pop(0)
-            del self._cache[oldest]
-        self._cache[key] = surface
-        self._access_order.append(key)
+        with self._lock:
+            if len(self._cache) >= self._max_size:
+                oldest = self._access_order.pop(0)
+                del self._cache[oldest]
+            self._cache[key] = surface
+            self._access_order.append(key)
 
     def clear(self):
-        self._cache.clear()
-        self._access_order.clear()
+        with self._lock:
+            self._cache.clear()
+            self._access_order.clear()
 
 
 class Display:
@@ -175,11 +177,12 @@ class Display:
         # 清除缓存（字体变化后）
         self._text_cache.clear()
 
-    def _wrap_text(self, text: str, max_width: int) -> List[str]:
+    def _wrap_text(self, text: str, max_width: int, font: Optional[pygame.font.Font] = None) -> List[str]:
         """自动换行处理"""
         if not text:
             return [""]
 
+        font = font or self.font
         lines = text.split('\n')
         wrapped_lines = []
 
@@ -191,7 +194,7 @@ class Display:
             current_line = ""
             for char in line:
                 test_line = current_line + char
-                if self.font.size(test_line)[0] <= max_width:
+                if font.size(test_line)[0] <= max_width:
                     current_line = test_line
                 else:
                     if current_line:
@@ -227,14 +230,15 @@ class Display:
         color = self.style.get('bg_color', [0, 0, 0])
         return tuple(color[:3])
 
-    def _render_text_cached(self, text: str, color: Tuple[int, int, int]) -> pygame.Surface:
+    def _render_text_cached(self, text: str, color: Tuple[int, int, int], font: Optional[pygame.font.Font] = None) -> pygame.Surface:
         """带缓存的文本渲染"""
+        font = font or self.font
         cache_key = f"{text}_{color}_{self.style.get('font_size', 48)}"
         cached = self._text_cache.get(cache_key)
         if cached:
             return cached
 
-        surface = self.font.render(text, True, color)
+        surface = font.render(text, True, color)
         # 转换为显示格式以加速 blit
         surface = surface.convert()
         self._text_cache.put(cache_key, surface)
@@ -256,9 +260,10 @@ class Display:
         if not self._need_full_redraw and not self._dirty_rects:
             return
 
-        # 获取样式
+        # 获取样式和字体（在锁内读取，避免与 watchdog 线程竞态）
         with self._style_lock:
             style = self.style.copy()
+            current_font = self.font
 
         bg_color = tuple(style.get('bg_color', [0, 0, 0]))
         text_color = tuple(style.get('color', [0, 255, 0]))
@@ -281,42 +286,44 @@ class Display:
 
         if self._lyrics:
             max_text_width = screen_width - 2 * padding
-            lines = self._wrap_text(self._lyrics, max_text_width)
+            lines = self._wrap_text(self._lyrics, max_text_width, current_font)
 
-            line_height = self.font.get_linesize()
+            line_height = current_font.get_linesize()
             total_height = len(lines) * (line_height + line_spacing) - line_spacing
             start_y = max(padding, (screen_height - total_height) // 2)
 
             # 渲染每一行
             for i, line in enumerate(lines):
                 if line:
-                    text_surface = self._render_text_cached(line, text_color)
+                    text_surface = self._render_text_cached(line, text_color, current_font)
                     text_rect = text_surface.get_rect()
                     text_rect.centerx = screen_width // 2
                     text_rect.top = start_y + i * (line_height + line_spacing)
 
                     self.screen.blit(text_surface, text_rect)
                     self._last_rendered_lines.append((line, text_surface, text_rect))
+                    self._dirty_rects.append(text_rect)
 
         else:
             # 无歌词时显示提示
             hint_text = "等待连接..."
             hint_color = (128, 128, 128)
-            hint_surface = self._render_text_cached(hint_text, hint_color)
+            hint_surface = self._render_text_cached(hint_text, hint_color, current_font)
             hint_rect = hint_surface.get_rect(center=self.screen.get_rect().center)
             self.screen.blit(hint_surface, hint_rect)
             self._last_rendered_lines.append((hint_text, hint_surface, hint_rect))
+            self._dirty_rects.append(hint_rect)
 
         # 更新显示
         if self._need_full_redraw:
             pygame.display.flip()
             self._need_full_redraw = False
+            self._dirty_rects.clear()
         else:
             # 只更新变化的区域
-            pygame.display.update(self._dirty_rects)
-
-        self._dirty_rects.clear()
-        self._last_lyrics = self._lyrics
+            if self._dirty_rects:
+                pygame.display.update(self._dirty_rects)
+                self._dirty_rects.clear()
 
     def main_loop(self):
         """主循环（应在主线程中调用）"""

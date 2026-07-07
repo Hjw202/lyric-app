@@ -194,13 +194,20 @@ class IPCServer:
                 if current_time - info.last_activity > self.client_timeout:
                     timeout_clients.append(client_id)
 
+        # 关闭超时客户端（在锁外等待 writer 关闭，避免死锁）
         for client_id in timeout_clients:
             logger.warning(f"移除超时客户端: {client_id}")
+            info = None
             async with self._lock:
                 if client_id in self.clients:
                     info = self.clients.pop(client_id)
-                    info.writer.close()
                     self._stats.connections_active = len(self.clients)
+            if info:
+                info.writer.close()
+                try:
+                    await info.writer.wait_closed()
+                except Exception:
+                    pass
 
     async def send_to_client(self, client_id: str, message: str) -> bool:
         """发送消息到指定客户端"""
@@ -208,12 +215,16 @@ class IPCServer:
             info = self.clients.get(client_id)
             if not info:
                 return False
+            # 复制引用，释放锁后安全使用
+            writer = info.writer
 
         try:
             data = (message + '\n').encode('utf-8')
-            info.writer.write(data)
-            await info.writer.drain()
-            info.messages_sent += 1
+            writer.write(data)
+            await writer.drain()
+            async with self._lock:
+                if client_id in self.clients:
+                    self.clients[client_id].messages_sent += 1
             self._stats.messages_sent += 1
             self._stats.bytes_sent += len(data)
             return True

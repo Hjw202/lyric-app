@@ -50,6 +50,22 @@ class AudioEffects:
             logger.error(f"获取默认 sink 失败: {e}")
             return None
 
+    def _ensure_connection(self):
+        """确保 PulseAudio 连接有效，断开则自动重连"""
+        if not PULSECTL_AVAILABLE:
+            return False
+        if self.pulse is None:
+            self._connect()
+        if self.pulse:
+            try:
+                self.pulse.server_info()
+                return True
+            except Exception:
+                logger.warning("PulseAudio 连接已断开，尝试重连...")
+                self._connect()
+                return self.pulse is not None
+        return False
+
     def set_effect(self, name: str):
         """
         设置音效预设
@@ -57,7 +73,7 @@ class AudioEffects:
         Args:
             name: 预设名称 (rock, pop, classical, flat/none)
         """
-        if not PULSECTL_AVAILABLE or not self.pulse:
+        if not self._ensure_connection():
             logger.warning("PulseAudio 不可用")
             return
 
@@ -129,7 +145,7 @@ class AudioEffects:
         Args:
             level: 音量级别 (0-100)
         """
-        if not PULSECTL_AVAILABLE or not self.pulse:
+        if not self._ensure_connection():
             logger.warning("PulseAudio 不可用")
             return
 
@@ -154,7 +170,7 @@ class AudioEffects:
 
     def get_volume(self) -> int:
         """获取当前音量"""
-        if not PULSECTL_AVAILABLE or not self.pulse:
+        if not self._ensure_connection():
             return self.default_volume
 
         try:

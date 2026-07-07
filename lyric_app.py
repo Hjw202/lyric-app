@@ -99,18 +99,17 @@ def run_ble(config_path: str):
                 loop
             )
 
+    # 创建 BLE 服务器
+    ble_server = BLEServer(ble_config, on_lyric, on_command)
+
     # 配置变更监听
     def on_config_change(event):
         logger.logger.info(f"配置变更: {event.key}")
         # 更新 BLE 配置
         if event.key.startswith('ble.'):
-            nonlocal ble_config
-            ble_config = config_manager.get_section('ble')
+            ble_server.config = config_manager.get_section('ble')
 
     config_manager.add_listener(on_config_change)
-
-    # 创建 BLE 服务器
-    ble_server = BLEServer(ble_config, on_lyric, on_command)
 
     # 信号处理
     shutdown_event = asyncio.Event()
@@ -255,7 +254,10 @@ def run_ui(config_path: str):
         logger.logger.error(f"UI 循环错误: {e}")
     finally:
         # 清理
-        asyncio.run(ipc_client.disconnect())
+        ipc_client._running = False
+        ipc_client._connected = False
+        if ipc_thread_obj.is_alive():
+            ipc_thread_obj.join(timeout=3)
         audio_effects.close()
         cleanup_config_manager()
         pygame.quit()

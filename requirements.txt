@@ -12,6 +12,3 @@ pygame>=2.5.0
 
 # 配置文件监听
 watchdog>=3.0.0
-
-# 打包工具
-pyinstaller>=6.0.0
