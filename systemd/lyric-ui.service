@@ -1,6 +1,6 @@
 [Unit]
 Description=Lyric Speaker UI Service
-After=lyric-ble.service
+After=lyric-ble.service network.target graphical.target
 Wants=lyric-ble.service
 After=pulseaudio.service
 
@@ -18,6 +18,8 @@ SyslogIdentifier=lyric-ui
 # 环境变量
 Environment=DISPLAY=:0
 Environment=PULSE_SERVER=unix:/run/pulse/native
+Environment=XDG_RUNTIME_DIR=/run/user/__UID__
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/__UID__/bus
 
 [Install]
 WantedBy=multi-user.target

@@ -139,11 +139,13 @@ if [ -f "systemd/lyric-ui.service" ]; then
     cp systemd/lyric-ui.service "$SERVICE_DIR/"
 fi
 
-# 自动替换服务文件中的用户名
+# 自动替换服务文件中的用户名和 UID
 REAL_USER="${SUDO_USER:-$USER}"
-echo "设置服务运行用户: $REAL_USER"
+REAL_UID=$(id -u "$REAL_USER")
+echo "设置服务运行用户: $REAL_USER (uid=$REAL_UID)"
 sed -i "s/^User=pi$/User=$REAL_USER/" "$SERVICE_DIR/lyric-ble.service"
 sed -i "s/^User=pi$/User=$REAL_USER/" "$SERVICE_DIR/lyric-ui.service"
+sed -i "s/__UID__/$REAL_UID/g" "$SERVICE_DIR/lyric-ui.service"
 
 # 确保必要的组存在，并将用户加入
 for GRP in bluetooth pulse-access; do
