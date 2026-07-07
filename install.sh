@@ -139,6 +139,12 @@ if [ -f "systemd/lyric-ui.service" ]; then
     cp systemd/lyric-ui.service "$SERVICE_DIR/"
 fi
 
+# 自动替换服务文件中的用户名
+REAL_USER="${SUDO_USER:-$USER}"
+echo "设置服务运行用户: $REAL_USER"
+sed -i "s/^User=pi$/User=$REAL_USER/" "$SERVICE_DIR/lyric-ble.service"
+sed -i "s/^User=pi$/User=$REAL_USER/" "$SERVICE_DIR/lyric-ui.service"
+
 # 重新加载 systemd
 echo "重新加载 systemd..."
 systemctl daemon-reload
