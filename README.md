@@ -32,7 +32,8 @@
 - **PulseAudio**（音频服务，含 LADSPA 插件支持）
 - **SDL2**（Pygame 图形依赖）
 - **D-Bus** 系统总线
-- 用户需在 `bluetooth` 和 `pulse-access` 组中
+
+> `bluetooth` 和 `pulse-access` 用户组由安装脚本自动创建并加入当前用户，无需手动配置。
 
 ---
 
@@ -63,23 +64,7 @@ sudo apt-get install -y \
 > - `fonts-wqy-microhei` 是中文字体，歌词显示必需（如已安装其他中文字体可跳过）
 > - `pulseaudio-utils` 提供 `pactl` 等管理工具
 
-### 第二步：配置用户权限
-
-```bash
-# 将当前用户添加到蓝牙和音频组
-sudo usermod -a -G bluetooth $USER
-sudo usermod -a -G pulse-access $USER
-
-# 立即生效（或注销重新登录 / 重启）
-newgrp bluetooth
-newgrp pulse-access
-
-# 验证组是否生效
-groups $USER
-# 应输出包含 bluetooth 和 pulse-access
-```
-
-### 第三步：获取应用
+### 第二步：获取应用
 
 #### 方式 A：下载预编译包（推荐）
 
@@ -118,7 +103,7 @@ pyinstaller --onefile --add-data "config/config.json:config" lyric_app.py
 # 输出：dist/lyric_app
 ```
 
-### 第四步：运行安装脚本
+### 第三步：运行安装脚本
 
 ```bash
 sudo ./install.sh
@@ -131,17 +116,14 @@ sudo ./install.sh
 | ✅ 复制可执行文件 | → `/opt/lyric-app/lyric_app` |
 | ✅ 复制配置文件 | → `/etc/lyric-app/config.json` |
 | ✅ 安装 systemd 服务 | → `/etc/systemd/system/lyric-ble.service`、`lyric-ui.service` |
+| ✅ 自动配置运行用户 | 将服务中的 `User` 设为当前 `sudo` 用户 |
+| ✅ 自动创建系统组 | 创建 `bluetooth`、`pulse-access` 组（如不存在）并加入当前用户 |
 | ✅ 启用开机自启 | `systemctl enable lyric-ble lyric-ui` |
 | ✅ 创建日志目录 | → `/var/log/lyric-app/` |
 
-> **注意：** 安装脚本中的 systemd 服务默认以 `pi` 用户运行。如果你的用户名不是 `pi`，需要在安装后修改服务文件：
-> ```bash
-> sudo sed -i "s/User=pi/User=$USER/" /etc/systemd/system/lyric-ble.service
-> sudo sed -i "s/User=pi/User=$USER/" /etc/systemd/system/lyric-ui.service
-> sudo systemctl daemon-reload
-> ```
+> **注意：** 安装脚本会自动检测执行 `sudo` 的用户名，并设置为 systemd 服务的运行用户，无需手动修改。同时会自动创建 `bluetooth` 和 `pulse-access` 组并将当前用户加入。
 
-### 第五步：配置显示模式
+### 第四步：配置显示模式
 
 编辑配置文件，根据你的显示方式选择驱动：
 
@@ -165,7 +147,7 @@ sudo nano /etc/lyric-app/config.json
 | 有桌面环境（Raspberry Pi OS Desktop 等） | `"x11"` | 使用 X11 窗口系统 |
 | 无桌面（Lite 版 / 纯终端） | `"fbcon"` | 直接写入 Framebuffer |
 
-### 第六步：启动服务 & 验证
+### 第五步：启动服务 & 验证
 
 ```bash
 # 启动服务
@@ -188,7 +170,7 @@ journalctl -u lyric-ui -f
 # 如需修改设备名称，编辑 /etc/lyric-app/config.json 中的 ble.device_name
 ```
 
-### 第七步：重启（可选）
+### 第六步：重启（可选）
 
 ```bash
 sudo reboot
@@ -335,7 +317,7 @@ bluetoothctl list
 # 3. 检查 BLE 服务日志
 journalctl -u lyric-ble -n 50
 
-# 4. 确认用户在 bluetooth 组
+# 4. 确认用户在 bluetooth 组（安装脚本会自动添加）
 groups $USER
 ```
 
@@ -413,8 +395,9 @@ sudo ./install.sh --upgrade
 | ✅ 保留你的配置 | 你的 `config.json` 不会被覆盖 |
 | ✅ 保存新版本默认配置 | → `/etc/lyric-app/config.json.default`（供参考） |
 | ✅ 替换可执行文件 | → `/opt/lyric-app/lyric_app` |
-| ✅ 更新 systemd 服务 | 服务文件会更新，daemon-reload 自动执行 |
-| ✅ 自动重启服务 | lyric-ble 和 lyric-ui 自动重启，无需手动操作 |
+| ✅ 更新 systemd 服务 | 服务文件会更新，自动配置运行用户和 UID |
+| ✅ 创建必要系统组 | `bluetooth`、`pulse-access` 组不存在则自动创建，并加入当前用户 |
+| ✅ 重载并重启服务 | `systemctl daemon-reload` + 服务自动重启，无需手动操作 |
 
 #### 3. 检查新版本配置变化（可选）
 

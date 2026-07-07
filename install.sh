@@ -143,8 +143,8 @@ fi
 REAL_USER="${SUDO_USER:-$USER}"
 REAL_UID=$(id -u "$REAL_USER")
 echo "设置服务运行用户: $REAL_USER (uid=$REAL_UID)"
-sed -i "s/^User=pi$/User=$REAL_USER/" "$SERVICE_DIR/lyric-ble.service"
-sed -i "s/^User=pi$/User=$REAL_USER/" "$SERVICE_DIR/lyric-ui.service"
+sed -i "s/__USER__/$REAL_USER/g" "$SERVICE_DIR/lyric-ble.service"
+sed -i "s/__USER__/$REAL_USER/g" "$SERVICE_DIR/lyric-ui.service"
 sed -i "s/__UID__/$REAL_UID/g" "$SERVICE_DIR/lyric-ui.service"
 
 # 确保必要的组存在，并将用户加入
@@ -175,7 +175,9 @@ mkdir -p /var/log/lyric-app
 # 设置权限
 echo "设置权限..."
 chmod 755 "$INSTALL_DIR"
-chmod 644 "$CONFIG_DIR/config.json"
+if [ -f "$CONFIG_DIR/config.json" ]; then
+    chmod 644 "$CONFIG_DIR/config.json"
+fi
 
 # 升级模式：自动重启服务
 if [ "$MODE" = "upgrade" ]; then
@@ -202,9 +204,5 @@ else
     echo ""
     echo "配置文件位置: $CONFIG_DIR/config.json"
     echo ""
-    echo -e "${YELLOW}注意: 请确保当前用户在 bluetooth 和 pulse-access 组中${NC}"
-    echo "  sudo usermod -a -G bluetooth \$USER"
-    echo "  sudo usermod -a -G pulse-access \$USER"
-    echo ""
-    echo -e "${YELLOW}建议重启系统: sudo reboot${NC}"
+    echo -e "${YELLOW}建议重启系统以确保用户组生效: sudo reboot${NC}"
 fi
