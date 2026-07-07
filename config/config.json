@@ -8,7 +8,7 @@
     "device_name": "LyricSpeaker"
   },
   "display": {
-    "driver": "fbcon",
+    "driver": "x11",
     "fb_device": "/dev/fb0",
     "x11_display": ":0",
     "default_style": {

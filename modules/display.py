@@ -75,20 +75,51 @@ class Display:
         self._dirty_rects: List[pygame.Rect] = []
         self._need_full_redraw = True
 
+    @staticmethod
+    def _check_x11_running() -> bool:
+        """检测 X11 服务器是否在运行"""
+        import subprocess
+        try:
+            result = subprocess.run(
+                ['pgrep', '-x', 'Xorg'],
+                capture_output=True, timeout=2
+            )
+            if result.returncode == 0:
+                return True
+            result = subprocess.run(
+                ['pgrep', '-x', 'Xwayland'],
+                capture_output=True, timeout=2
+            )
+            if result.returncode == 0:
+                return True
+        except Exception:
+            pass
+        # 检查常见 X11 socket
+        return os.path.exists('/tmp/.X11-unix')
+
     def _setup_display(self):
         """初始化 Pygame 显示（优化版）"""
-        driver = self.display_config.get('driver', 'fbcon')
+        driver = self.display_config.get('driver', 'auto')
+
+        if driver == 'auto':
+            # 自动检测：优先 X11，回退 fbcon
+            if os.environ.get('DISPLAY') or self._check_x11_running():
+                driver = 'x11'
+            else:
+                driver = 'fbcon'
+            logger.info(f"自动检测显示驱动: {driver}")
 
         if driver == 'fbcon':
             fb_device = self.display_config.get('fb_device', '/dev/fb0')
             os.environ['SDL_VIDEODRIVER'] = 'fbcon'
             os.environ['SDL_FBDEV'] = fb_device
-            os.environ['SDL_NOMOUSE'] = '1'  # 禁用鼠标
+            os.environ['SDL_NOMOUSE'] = '1'
             logger.info(f"使用 Framebuffer 显示: {fb_device}")
         else:
             x11_display = self.display_config.get('x11_display', ':0')
-            os.environ['DISPLAY'] = x11_display
-            logger.info(f"使用 X11 显示: {x11_display}")
+            os.environ['SDL_VIDEODRIVER'] = 'x11'
+            os.environ.setdefault('DISPLAY', x11_display)
+            logger.info(f"使用 X11 显示: {os.environ['DISPLAY']}")
 
         # 初始化 Pygame
         pygame.init()
