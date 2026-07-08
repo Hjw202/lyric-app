@@ -247,7 +247,8 @@ if [ "$SESSION_TYPE" = "wayland" ]; then
 else
     RENDER=(--disable-gpu)
 fi
-exec "$BROWSER" "${COMMON[@]}" "${RENDER[@]}" "$URL"
+setsid "$BROWSER" "${COMMON[@]}" "${RENDER[@]}" "$URL" < /dev/null > /dev/null 2>&1 &
+echo "[lyric-kiosk] 浏览器已在后台启动 (PID: $!)"
 KIOSK_EOF
     chmod +x "$INSTALL_DIR/scripts/start-kiosk.sh"
 fi

@@ -73,7 +73,11 @@ else
 fi
 
 echo "[lyric-kiosk] 启动浏览器: $BROWSER $URL (${SESSION_TYPE})"
-exec "$BROWSER" \
+
+# 后台启动浏览器，不阻塞 systemd ExecStartPost
+# setsid 创建新会话脱离终端，但保留在同一 cgroup 内（服务停止时 systemd 会一并清理）
+setsid "$BROWSER" \
     "${COMMON_FLAGS[@]}" \
     "${RENDER_FLAGS[@]}" \
-    "$URL"
+    "$URL" < /dev/null > /dev/null 2>&1 &
+echo "[lyric-kiosk] 浏览器已在后台启动 (PID: $!)"

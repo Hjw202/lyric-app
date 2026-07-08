@@ -102,7 +102,7 @@ class AVRCPController:
         om = root.get_interface('org.freedesktop.DBus.ObjectManager')
 
         objects = await om.call_get_managed_objects()
-        self._find_player(objects)
+        await self._find_player(objects)
 
         if self.player_path:
             logger.info(f"找到媒体播放器: {self.player_path}")
@@ -126,23 +126,23 @@ class AVRCPController:
             except asyncio.CancelledError:
                 pass
 
-    def _find_player(self, objects: dict):
+    async def _find_player(self, objects: dict):
         """从 GetManagedObjects 结果中查找 MediaPlayer1"""
         for path, interfaces in objects.items():
             if 'org.bluez.MediaPlayer1' in interfaces:
                 self.player_path = path
-                self._subscribe_props(path)
+                await self._subscribe_props(path)
                 return
 
-    def _subscribe_props(self, path: str):
+    async def _subscribe_props(self, path: str):
         """订阅媒体播放器属性变更信号"""
         if not self.bus:
             return
         try:
-            intr = self.bus.get_proxy_object('org.bluez', path).get_interface(
-                'org.freedesktop.DBus.Properties'
-            )
-            intr.on_properties_changed(self._on_properties_changed)
+            intr = await self.bus.introspect('org.bluez', path)
+            proxy = self.bus.get_proxy_object('org.bluez', path, intr)
+            props = proxy.get_interface('org.freedesktop.DBus.Properties')
+            props.on_properties_changed(self._on_properties_changed)
             logger.debug(f"已订阅属性变更: {path}")
         except Exception as e:
             logger.warning(f"订阅属性变更失败: {e}")
@@ -152,8 +152,12 @@ class AVRCPController:
         if 'org.bluez.MediaPlayer1' in interfaces:
             logger.info(f"媒体播放器出现: {path}")
             self.player_path = path
-            self._subscribe_props(path)
-            asyncio.create_task(self._read_all_props())
+            asyncio.create_task(self._on_player_appeared(path))
+
+    async def _on_player_appeared(self, path: str):
+        """设备连接后：先订阅属性变更，再读取当前状态（避免漏掉中间变更）"""
+        await self._subscribe_props(path)
+        await self._read_all_props()
 
     def _on_properties_changed(self, interface: str, changed: dict, invalidated: list):
         """属性变更回调"""
