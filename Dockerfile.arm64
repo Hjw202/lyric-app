@@ -3,7 +3,7 @@ FROM arm64v8/python:3.11-slim
 
 WORKDIR /app
 
-# 安装系统依赖（含 SDL2 用于 pygame 构建，procps 提供 pgrep）
+# 安装系统依赖（procps 提供 pgrep 用于 kiosk 脚本）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \

@@ -1,0 +1,45 @@
+#!/usr/bin/pulseaudio -n
+##
+## PulseAudio 配置 - 蓝牙歌词音箱
+## 部署到: /etc/pulse/default.pa (替换系统默认)
+## 功能: ALSA 本地输出 + 蓝牙 A2DP sink（手机连入播放音频）
+##
+## 注意: 如果系统使用 PipeWire (Pi Bookworm+), 此文件不生效,
+##       PipeWire 通过 pipewire-pulse + wireplumber 自动处理蓝牙音频。
+
+## 基础模块
+load-module module-card-restore
+load-module module-device-restore
+load-module module-default-restore
+load-module module-stream-restore
+load-module module-augment-properties
+load-module module-switch-on-port-available
+
+## ALSA 驱动（自动检测声卡）
+.ifexists module-udev-detect.so
+load-module module-udev-detect tsched=1
+.else
+load-module module-alsa-sink device=hw:0
+.endif
+
+## 蓝牙音频模块（A2DP sink 核心）
+.ifexists module-bluetooth-discover.so
+load-module module-bluetooth-discover
+.endif
+
+.ifexists module-bluetooth-policy.so
+# auto_switch=2: A2DP 优先，支持双向切换
+load-module module-bluetooth-policy auto_switch=2
+.endif
+
+## 通信协议
+load-module module-native-protocol-unix
+
+## 音频路由
+load-module module-always-sink
+load-module module-suspend-on-idle
+load-module module-rescue-streams
+
+## 默认音量
+set-sink-volume alsa_output.default 65536
+set-source-volume alsa_input.default 65536

@@ -1,0 +1,37 @@
+[Unit]
+Description=Lyric Speaker (A2DP Sink + AVRCP + WebServer + Chromium Kiosk)
+After=bluetooth.service lyric-bt-agent.service sound.target
+Requires=bluetooth.service
+Wants=lyric-bt-agent.service sound.target
+
+[Service]
+Type=simple
+User=__USER__
+Group=bluetooth
+SupplementaryGroup=pulse-access
+ExecStart=/opt/lyric-app/lyric_app
+ExecStartPost=/opt/lyric-app/scripts/start-kiosk.sh
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lyric-web
+
+# 音频：PulseAudio/PipeWire 用户级 socket（pipewire-pulse 使用同一路径）
+Environment=PULSE_SERVER=unix:/run/user/__UID__/pulse/native
+
+# D-Bus 会话总线（AVRCP 通过 D-Bus 系统总线通信，但用户会话总线也需要）
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/__UID__/bus
+
+# XDG_RUNTIME_DIR（PulseAudio socket、Wayland socket 都在此目录下）
+Environment=XDG_RUNTIME_DIR=/run/user/__UID__
+
+# HOME 目录（PulseAudio 配置、chromium 缓存等需要）
+Environment=HOME=__HOME__
+
+# 显示环境（start-kiosk.sh 会自动检测 Wayland 或 X11）
+Environment=DISPLAY=:0
+Environment=WAYLAND_DISPLAY=wayland-0
+
+[Install]
+WantedBy=graphical.target

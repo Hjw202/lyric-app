@@ -1,14 +1,13 @@
 # 蓝牙歌词音箱 - Python 依赖
 
-# BLE 蓝牙外设（用于创建 GATT Server）
-bluez-peripheral>=0.1.7
+# D-Bus 通信（AVRCP 读取媒体播放信息）
 dbus-next>=0.2.0
 
 # 音频控制
 pulsectl>=23.5.0
 
-# 图形显示
-pygame>=2.5.0
+# Web 服务器 + HTTP 客户端（歌词查询）
+aiohttp>=3.9.0
 
 # 配置文件监听
 watchdog>=3.0.0

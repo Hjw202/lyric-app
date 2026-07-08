@@ -2,7 +2,7 @@
 命令处理模块 - 解析和分发 JSON 命令
 
 支持的命令：
-- style: 修改显示样式
+- style: 修改显示样式（通过回调推送到浏览器）
 - effect: 切换音效预设
 - volume: 调节音量
 """
@@ -17,29 +17,30 @@ logger = logging.getLogger(__name__)
 class CommandHandler:
     """命令处理器"""
 
-    def __init__(self, config: dict, display=None, audio_effects=None):
+    def __init__(self, config: dict, audio_effects=None):
         self.config = config
-        self.display = display
         self.audio_effects = audio_effects
 
-        # 命令处理器映射
+        # 命令处理器映射（effect/volume 直接执行，style 通过回调）
         self._handlers: Dict[str, Callable] = {
-            'style': self._handle_style,
             'effect': self._handle_effect,
             'volume': self._handle_volume,
         }
 
-    def process_command(self, json_str: str) -> bool:
+    def process_command(self, json_str: str, on_style: Callable = None) -> bool:
         """
         处理 JSON 命令
 
+        style 命令通过 on_style 回调推送到浏览器，
+        effect/volume 命令直接执行。
+
         Args:
             json_str: JSON 字符串
+            on_style: 样式回调函数，接收 style dict
 
         Returns:
             bool: 是否成功处理
         """
-        # 检查是否是 JSON 格式
         json_str = json_str.strip()
         if not json_str.startswith('{'):
             return False
@@ -50,13 +51,23 @@ class CommandHandler:
             logger.debug(f"JSON 解析失败: {e}")
             return False
 
-        # 获取命令类型
         cmd = data.get('cmd')
         if not cmd:
             logger.debug("缺少 cmd 字段")
             return False
 
-        # 查找并执行处理器
+        if cmd == 'style':
+            # style 命令：提取样式后通过回调推送
+            style = self._extract_style(data)
+            if style:
+                if on_style:
+                    on_style(style)
+                logger.info(f"样式已更新: {style}")
+            else:
+                logger.debug("没有有效的样式参数")
+            return True
+
+        # effect/volume 命令：直接执行
         handler = self._handlers.get(cmd)
         if not handler:
             logger.warning(f"未知命令: {cmd}")
@@ -69,20 +80,15 @@ class CommandHandler:
             logger.error(f"执行命令 {cmd} 失败: {e}")
             return False
 
-    def _handle_style(self, data: dict):
-        """处理样式命令"""
-        if not self.display:
-            logger.warning("显示器未初始化，无法更新样式")
-            return
-
-        # 提取样式参数
+    def _extract_style(self, data: dict) -> dict:
+        """从命令数据中提取样式参数"""
         style = {}
+
         if 'color' in data:
             color = data['color']
             if isinstance(color, list) and len(color) >= 3:
                 style['color'] = color[:3]
             elif isinstance(color, str):
-                # 支持十六进制颜色
                 style['color'] = self._hex_to_rgb(color)
 
         if 'bg_color' in data:
@@ -107,11 +113,12 @@ class CommandHandler:
             if isinstance(padding, (int, float)) and 0 <= padding <= 200:
                 style['padding'] = int(padding)
 
-        if style:
-            self.display.apply_style(style)
-            logger.info(f"样式已更新: {style}")
-        else:
-            logger.debug("没有有效的样式参数")
+        if 'char_interval' in data:
+            char_interval = data['char_interval']
+            if isinstance(char_interval, (int, float)) and 50 <= char_interval <= 2000:
+                style['char_interval'] = int(char_interval)
+
+        return style
 
     def _handle_effect(self, data: dict):
         """处理音效命令"""

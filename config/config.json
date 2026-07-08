@@ -1,23 +1,16 @@
 {
-  "ble": {
-    "lyric_service_uuid": "0000FFE0-0000-1000-8000-00805F9B34FB",
-    "lyric_char_uuid": "0000FFE1-0000-1000-8000-00805F9B34FB",
-    "control_service_uuid": "12345678-1234-1234-1234-123456789ABC",
-    "control_char_uuid": "12345678-1234-1234-1234-123456789ABD",
+  "bluetooth": {
     "adapter": "/org/bluez/hci0",
     "device_name": "LyricSpeaker"
   },
   "display": {
-    "driver": "x11",
-    "fb_device": "/dev/fb0",
-    "x11_display": ":0",
     "default_style": {
       "font_size": 48,
       "color": [0, 255, 0],
       "bg_color": [0, 0, 0],
-      "font_name": null,
       "line_spacing": 10,
-      "padding": 40
+      "padding": 40,
+      "char_interval": 200
     }
   },
   "audio": {
@@ -41,12 +34,23 @@
     },
     "default_volume": 70
   },
-  "ipc": {
-    "socket_path": "/tmp/lyric.sock"
+  "lyrics": {
+    "api_base": "https://music.163.com",
+    "cache_dir": "/var/cache/lyric-app/lyrics",
+    "cache_ttl": 2592000,
+    "request_timeout": 10
+  },
+  "web": {
+    "host": "127.0.0.1",
+    "port": 8080,
+    "kiosk": {
+      "enabled": true,
+      "browser": "chromium-browser",
+      "flags": ["--kiosk", "--noerrdialogs", "--disable-infobars", "--disable-gpu", "--no-sandbox"]
+    }
   },
   "logging": {
-    "ble_file": "/var/log/lyric-app/lyric-ble.log",
-    "ui_file": "/var/log/lyric-app/lyric-ui.log",
+    "web_file": "/var/log/lyric-app/lyric-web.log",
     "level": "INFO"
   }
 }

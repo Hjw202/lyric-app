@@ -5,13 +5,17 @@ a = Analysis(
     ['lyric_app.py'],
     pathex=[],
     binaries=[],
-    datas=[('config/config.json', 'config')],
+    datas=[
+        ('config/config.json', 'config'),
+        ('web/', 'web'),
+        ('scripts/', 'scripts'),
+    ],
     hiddenimports=[
         # watchdog 使用动态导入选择平台后端，PyInstaller 无法自动检测
         'watchdog.observers.inotify_buffer',
         'watchdog.observers.inotify',
         'watchdog.observers.polling',
-        # bluez_peripheral / dbus_next 可能使用动态导入
+        # dbus_next 用于 AVRCP D-Bus 通信
         'dbus_next',
         'dbus_next.aio',
         'dbus_next.constants',
@@ -19,11 +23,15 @@ a = Analysis(
         'dbus_next.proxy',
         'dbus_next.validators',
         'dbus_next.signature',
-        'bluez_peripheral',
-        'bluez_peripheral.advert',
-        'bluez_peripheral.gatt',
-        'bluez_peripheral.service',
-        'bluez_peripheral.util',
+        # aiohttp（Web 服务器 + 歌词 API 查询）
+        'aiohttp',
+        'aiohttp.web',
+        'aiohttp.web_app',
+        'aiohttp.web_runner',
+        'aiohttp.web_socketserver',
+        'aiohttp.websocket',
+        'aiohttp.http_parser',
+        'aiohttp.client',
     ],
     hookspath=[],
     hooksconfig={},

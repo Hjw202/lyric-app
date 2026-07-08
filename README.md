@@ -1,19 +1,35 @@
 # 蓝牙歌词音箱 (Lyric Speaker)
 
-一个运行在 Linux ARM 开发板上的蓝牙歌词显示应用，通过 BLE 接收手机音乐 App（网易云音乐、QQ 音乐等）的歌词并全屏显示，同时支持音效控制。
+一个运行在 Linux ARM 开发板上的蓝牙歌词显示应用。开发板作为 A2DP 蓝牙音箱接收手机音频，同时通过 AVRCP 协议读取正在播放的曲目信息，联网查询 LRC 歌词，按播放进度逐行高亮同步显示在全屏浏览器上。
+
+## 工作原理
+
+```
+手机播放音乐（任何 App）
+    │
+    ├── A2DP ──→ 开发板接收音频，通过扬声器/HDMI 播放
+    │
+    └── AVRCP ──→ 读取歌名、歌手、播放进度
+                      │
+                      ├── 联网查询 LRC 歌词（网易云音乐 API）
+                      │
+                      └── 按播放进度逐行高亮显示
+                              │
+                              └── Chromium Kiosk 全屏渲染
+```
+
+与 BLE 方案不同，A2DP + AVRCP 是标准蓝牙音频协议，**任何音乐 App 都可以直接使用**——网易云音乐、QQ 音乐、Spotify、Apple Music 等，无需安装额外插件或使用专用客户端。
 
 ## 功能特性
 
-- 🎵 **蓝牙歌词接收**：通过 BLE GATT 接收手机音乐 App 推送的歌词
-- 📺 **全屏歌词显示**：Pygame 硬件加速渲染，自动换行、LRU 文本缓存、脏矩形优化
-- 🎛️ **远程控制**：通过 BLE 控制通道实时修改歌词样式、切换音效、调节音量
-- 🔊 **音效管理**：支持多种预设音效（摇滚、流行、古典等），基于 LADSPA 插件
-- 🔄 **进程分离**：BLE 和 UI 分离为两个独立进程，通过 Unix Socket 通信（心跳检测 + 自动重连）
-- ⚙️ **配置热重载**：修改 `config.json` 后自动生效，无需重启服务
-- 📊 **结构化日志**：JSON 格式日志输出，支持日志轮转（10MB/份，保留 5 份）
-- 🚀 **开机自启**：systemd 服务管理，开机自动启动
-
----
+- **A2DP 蓝牙音箱**：开发板作为蓝牙音频接收端，手机连接后直接播放音频
+- **AVRCP 歌词同步**：通过 AVRCP 协议读取歌名、歌手、播放进度，按 LRC 时间戳逐行高亮
+- **联网歌词查询**：自动从网易云音乐 API 搜索并获取 LRC 歌词，带磁盘缓存（30 天）
+- **Chromium Kiosk 全屏**：Web 页面渲染，当前行高亮 + 平滑滚动，支持 Wayland 和 X11
+- **自动配对**：蓝牙配对代理（NoInputNoOutput），手机点连接即配对，无需手动确认
+- **音效管理**：支持多种预设音效（摇滚、流行、古典等），基于 LADSPA 插件
+- **配置热重载**：修改 `config.json` 后自动生效，无需重启服务
+- **PipeWire 兼容**：自动检测 PulseAudio 或 PipeWire（树莓派 Bookworm 默认），两种音频系统均可使用
 
 ## 系统要求
 
@@ -21,54 +37,44 @@
 
 | 项目 | 要求 |
 |------|------|
-| 开发板 | Linux ARM（armhf 或 arm64），如树莓派 2/3/4/5、RK3588 等 |
-| 蓝牙 | 支持 BLE 4.0+ 的蓝牙适配器（板载或 USB） |
-| 显示 | HDMI / DSI 显示屏，或支持 Framebuffer 的屏幕 |
+| 开发板 | Linux ARM（armhf 或 arm64），如树莓派 3/4/5、RK3588 等 |
+| 蓝牙 | 支持蓝牙 4.0+ 的适配器（板载或 USB），需支持 A2DP |
+| 显示 | HDMI / DSI 显示屏（Chromium Kiosk 需要 GUI 环境） |
 | 音频 | 3.5mm / HDMI / USB 扬声器或音频输出 |
+| 网络 | 需要联网（查询歌词 API） |
 
 ### 软件
 
-- **BlueZ** ≥ 5.50（蓝牙协议栈）
-- **PulseAudio**（音频服务，含 LADSPA 插件支持）
-- **SDL2**（Pygame 图形依赖）
-- **D-Bus** 系统总线
+- **BlueZ** ≥ 5.50（蓝牙协议栈，含 A2DP + AVRCP 支持）
+- **PulseAudio** 或 **PipeWire**（含 pipewire-pulse + wireplumber）
+- **Chromium**（浏览器，用于 Kiosk 全屏显示）
+- **D-Bus** 系统总线（AVRCP 通过 D-Bus 读取媒体信息）
+- **bluez-tools**（提供 bt-agent 自动配对代理）
+- **X11 或 Wayland**（显示服务器）
 
-> `bluetooth` 和 `pulse-access` 用户组由安装脚本自动创建并加入当前用户，无需手动配置。
+> 树莓派 Bookworm 默认使用 PipeWire + Wayland，完全兼容。安装脚本会自动检测并安装所需依赖。
 
 ---
 
-## 全新系统安装指南
+## 安装
 
-> 以下步骤适用于全新刷机的 Debian / Ubuntu / Raspberry Pi OS 系统，从头完成所有准备工作。
-
-### 第一步：更新系统 & 安装依赖
+### 第一步：准备系统
 
 ```bash
+# 更新系统
 sudo apt-get update && sudo apt-get upgrade -y
 
-sudo apt-get install -y \
-    bluez \
-    pulseaudio \
-    pulseaudio-utils \
-    swh-plugins \
-    libsdl2-2.0-0 \
-    libsdl2-image-2.0-0 \
-    libsdl2-mixer-2.0-0 \
-    libsdl2-ttf-2.0-0 \
-    fonts-wqy-microhei \
-    git
+# 安装基础依赖（安装脚本也会自动检测并安装缺失的包）
+sudo apt-get install -y bluez bluez-tools pulseaudio chromium-browser curl
 ```
 
-> **说明：**
-> - `swh-plugins` 提供 LADSPA 音效插件（摇滚/流行/古典等音效依赖它）
-> - `fonts-wqy-microhei` 是中文字体，歌词显示必需（如已安装其他中文字体可跳过）
-> - `pulseaudio-utils` 提供 `pactl` 等管理工具
+如果是树莓派 Bookworm（默认 PipeWire），安装脚本会自动检测并安装 `pipewire-audio` 和 `wireplumber`。
 
 ### 第二步：获取应用
 
 #### 方式 A：下载预编译包（推荐）
 
-从 [Releases 页面](https://github.com/Hjw202/lyric-app/releases) 下载最新版本：
+从 [Releases](https://github.com/Hjw202/lyric-app/releases) 下载最新版本：
 
 ```bash
 # ARM64（树莓派 4/5、RK3588 等 64 位系统）
@@ -76,7 +82,7 @@ wget https://github.com/Hjw202/lyric-app/releases/latest/download/lyric-app-arm6
 tar -xzf lyric-app-arm64.tar.gz
 cd lyric-app
 
-# ARM32（树莓派 2/3 等 32 位系统）
+# ARM32（树莓派 3 等 32 位系统）
 # wget https://github.com/Hjw202/lyric-app/releases/latest/download/lyric-app-armhf.tar.gz
 # tar -xzf lyric-app-armhf.tar.gz
 # cd lyric-app
@@ -85,21 +91,17 @@ cd lyric-app
 #### 方式 B：从源码编译
 
 ```bash
-# 克隆项目
 git clone https://github.com/Hjw202/lyric-app.git
 cd lyric-app
 
-# 创建 Python 虚拟环境
 python3 -m venv venv
 source venv/bin/activate
-
-# 安装 Python 依赖
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# （可选）打包为独立可执行文件
+# 打包为独立可执行文件
 pip install pyinstaller
-pyinstaller --onefile --add-data "config/config.json:config" lyric_app.py
+pyinstaller lyric_app.spec
 # 输出：dist/lyric_app
 ```
 
@@ -109,153 +111,163 @@ pyinstaller --onefile --add-data "config/config.json:config" lyric_app.py
 sudo ./install.sh
 ```
 
-安装脚本会自动完成：
+安装脚本自动完成以下操作：
 
 | 步骤 | 说明 |
 |------|------|
-| ✅ 复制可执行文件 | → `/opt/lyric-app/lyric_app` |
-| ✅ 复制配置文件 | → `/etc/lyric-app/config.json` |
-| ✅ 安装 systemd 服务 | → `/etc/systemd/system/lyric-ble.service`、`lyric-ui.service` |
-| ✅ 自动配置运行用户 | 将服务中的 `User` 设为当前 `sudo` 用户 |
-| ✅ 自动创建系统组 | 创建 `bluetooth`、`pulse-access` 组（如不存在）并加入当前用户 |
-| ✅ 启用开机自启 | `systemctl enable lyric-ble lyric-ui` |
-| ✅ 创建日志目录 | → `/var/log/lyric-app/` |
+| 安装系统依赖 | bluez、bluez-tools、pulseaudio/pipewire、chromium、curl |
+| 复制可执行文件 | → `/opt/lyric-app/lyric_app` |
+| 复制配置文件 | → `/etc/lyric-app/config.json` |
+| 部署 BlueZ 配置 | `/etc/bluetooth/main.conf`（A2DP sink 设备类型，始终可发现） |
+| 部署 PulseAudio 配置 | `/etc/pulse/default.pa`（加载蓝牙音频模块），PipeWire 系统跳过 |
+| 部署 bt-agent 服务 | `/etc/systemd/system/lyric-bt-agent.service`（自动配对代理） |
+| 部署 Web 服务 | `/etc/systemd/system/lyric-web.service`（主应用服务） |
+| 配置蓝牙适配器 | `bluetoothctl power on`、`discoverable on`、`pairable on` |
+| 设置运行用户 | 自动检测 sudo 用户，设置 User/UID/HOME 环境变量 |
+| 创建用户组 | 将用户加入 `bluetooth`、`pulse-access` 组 |
+| 启用用户会话保持 | `loginctl enable-linger`（无头运行 D-Bus 会话） |
+| 创建缓存目录 | `/var/cache/lyric-app/lyrics`（歌词缓存） |
+| 创建日志目录 | `/var/log/lyric-app/` |
+| 启用开机自启 | `systemctl enable lyric-bt-agent lyric-web` |
 
-> **注意：** 安装脚本会自动检测执行 `sudo` 的用户名，并设置为 systemd 服务的运行用户，无需手动修改。同时会自动创建 `bluetooth` 和 `pulse-access` 组并将当前用户加入。
+> 原有 BlueZ 和 PulseAudio 配置会备份为 `.lyric-bak` 文件，卸载时可恢复。
 
-### 第四步：配置显示模式
-
-编辑配置文件，根据你的显示方式选择驱动：
-
-```bash
-sudo nano /etc/lyric-app/config.json
-```
-
-```jsonc
-{
-  "display": {
-    "driver": "x11",        // "x11"（桌面环境）或 "fbcon"（纯 Framebuffer）
-    "fb_device": "/dev/fb0",
-    "x11_display": ":0",
-    // ...
-  }
-}
-```
-
-| 环境 | driver 值 | 说明 |
-|------|-----------|------|
-| 有桌面环境（Raspberry Pi OS Desktop 等） | `"x11"` | 使用 X11 窗口系统 |
-| 无桌面（Lite 版 / 纯终端） | `"fbcon"` | 直接写入 Framebuffer |
-
-### 第五步：启动服务 & 验证
-
-```bash
-# 启动服务
-sudo systemctl start lyric-ble
-sudo systemctl start lyric-ui
-
-# 检查服务状态
-sudo systemctl status lyric-ble
-sudo systemctl status lyric-ui
-
-# 查看实时日志
-journalctl -u lyric-ble -f
-journalctl -u lyric-ui -f
-```
-
-验证蓝牙是否正常广播：
-
-```bash
-# 在手机上打开蓝牙设置，搜索 "LyricSpeaker" 设备
-# 如需修改设备名称，编辑 /etc/lyric-app/config.json 中的 ble.device_name
-```
-
-### 第六步：重启（可选）
+### 第四步：重启并验证
 
 ```bash
 sudo reboot
 ```
 
-重启后服务会自动启动，无需手动操作。
+重启后验证服务状态：
+
+```bash
+# 检查服务状态
+sudo systemctl status lyric-web
+sudo systemctl status lyric-bt-agent
+
+# 检查蓝牙适配器
+bluetoothctl show
+
+# 查看日志
+journalctl -u lyric-web -f
+journalctl -u lyric-bt-agent -f
+```
 
 ---
 
-## 使用说明
+## 使用方法
 
-### 连接蓝牙
+### 连接蓝牙播放音乐
 
 1. 打开手机蓝牙设置
-2. 搜索名为 **"LyricSpeaker"** 的设备（名称可在 `config.json` 中修改 `ble.device_name`）
-3. 连接设备
+2. 搜索名为 **"Lyric Speaker"** 的设备
+3. 点击连接——自动配对，无需输入 PIN 或确认
+4. 打开任意音乐 App（网易云、QQ 音乐、Spotify 等）播放音乐
+5. 音频从开发板扬声器输出，屏幕全屏显示同步歌词
 
-### 推送歌词
+歌词会随播放进度自动逐行高亮，切歌时自动查询新歌词。
 
-使用支持 BLE 歌词推送的音乐 App（网易云音乐、QQ 音乐等），播放音乐时歌词会自动推送到音箱显示。
+### 修改蓝牙设备名称
 
-### 远程控制
+编辑配置文件：
 
-通过 BLE 调试工具（如 nRF Connect）或自研手机 App，向**控制特征**写入 JSON 命令：
-
-#### 修改歌词样式
-```json
-{"cmd": "style", "color": [255, 0, 0], "bg_color": [0, 0, 0], "font_size": 64}
+```bash
+sudo nano /etc/lyric-app/config.json
 ```
 
-#### 切换音效
-```json
-{"cmd": "effect", "name": "rock"}
+修改 `bluetooth.device_name` 字段。同时编辑 `/etc/bluetooth/main.conf` 中的 `Name` 字段保持一致，然后重启蓝牙服务：
+
+```bash
+sudo systemctl restart bluetooth
+sudo systemctl restart lyric-web
 ```
 
-#### 调节音量
+### 修改歌词显示样式
+
+编辑 `/etc/lyric-app/config.json` 中的 `display.default_style`：
+
 ```json
-{"cmd": "volume", "level": 80}
+{
+  "display": {
+    "default_style": {
+      "font_size": 48,
+      "color": [0, 255, 0],
+      "bg_color": [0, 0, 0],
+      "line_spacing": 10,
+      "padding": 40
+    }
+  }
+}
 ```
+
+修改后自动热重载生效，无需重启服务。
+
+### 浏览器手动访问
+
+如果不使用 Kiosk 全屏模式，也可以在任意浏览器中访问 `http://<开发板IP>:8080` 查看歌词页面。通过 WebSocket 实时同步歌词和播放进度。
 
 ---
 
 ## 配置文件
 
-配置文件位于 `/etc/lyric-app/config.json`（源码开发时为 `config/config.json`）。
-
-**支持热重载** —— 修改后自动生效，无需重启服务。
+配置文件位于 `/etc/lyric-app/config.json`，支持热重载。
 
 <details>
-<summary>完整配置项说明</summary>
+<summary>完整配置项</summary>
 
 ```jsonc
 {
-  "ble": {
-    "lyric_service_uuid": "0000FFE0-0000-1000-8000-00805F9B34FB",  // 歌词服务 UUID
-    "lyric_char_uuid": "0000FFE1-0000-1000-8000-00805F9B34FB",     // 歌词特征 UUID
-    "control_service_uuid": "12345678-1234-1234-1234-123456789ABC", // 控制服务 UUID
-    "control_char_uuid": "12345678-1234-1234-1234-123456789ABD",    // 控制特征 UUID
-    "adapter": "/org/bluez/hci0",         // 蓝牙适配器路径
-    "device_name": "LyricSpeaker"          // 蓝牙广播名称
+  // 蓝牙配置
+  "bluetooth": {
+    "adapter": "/org/bluez/hci0",   // 蓝牙适配器 D-Bus 路径
+    "device_name": "LyricSpeaker"    // 蓝牙设备名称
   },
+
+  // 显示样式
   "display": {
-    "driver": "x11",                       // 显示驱动 (x11 / fbcon)
-    "fb_device": "/dev/fb0",               // Framebuffer 设备（fbcon 模式）
-    "x11_display": ":0",                   // X11 显示地址（x11 模式）
     "default_style": {
-      "font_size": 48,                     // 字体大小
-      "color": [0, 255, 0],               // 文字颜色 (RGB)
-      "bg_color": [0, 0, 0],              // 背景颜色 (RGB)
-      "font_name": null,                   // 字体路径（null 自动检测）
-      "line_spacing": 10,                  // 行间距
-      "padding": 40                        // 边距
+      "font_size": 48,               // 字体大小 (px)
+      "color": [0, 255, 0],          // 当前行文字颜色 (RGB)
+      "bg_color": [0, 0, 0],         // 背景颜色 (RGB)
+      "line_spacing": 10,            // 行间距 (px)
+      "padding": 40                  // 页面内边距 (px)
     }
   },
+
+  // 音效预设
   "audio": {
-    "presets": {                           // 音效预设
-      "rock": { "module": "module-ladspa-sink", "label": "rock" },
-      "pop": { "module": "module-ladspa-sink", "label": "pop" },
+    "presets": {
+      "rock":      { "module": "module-ladspa-sink", "label": "rock" },
+      "pop":       { "module": "module-ladspa-sink", "label": "pop" },
       "classical": { "module": "module-ladspa-sink", "label": "classical" },
-      "flat": { "module": null, "label": null }   // 原声（无音效）
+      "flat":      { "module": null, "label": null }   // 原声无音效
     },
-    "default_volume": 70                   // 默认音量 (0-100)
+    "default_volume": 70             // 默认音量 (0-100)
   },
-  "ipc": {
-    "socket_path": "/tmp/lyric.sock"       // Unix Socket 路径
+
+  // 歌词查询
+  "lyrics": {
+    "api_base": "https://music.163.com",  // 歌词 API 地址
+    "cache_dir": "/var/cache/lyric-app/lyrics",  // 歌词缓存目录
+    "cache_ttl": 2592000,            // 缓存有效期 (秒，30天=2592000)
+    "request_timeout": 10            // 请求超时 (秒)
+  },
+
+  // Web 服务器
+  "web": {
+    "host": "127.0.0.1",             // 监听地址
+    "port": 8080,                    // 监听端口
+    "kiosk": {
+      "enabled": true,               // 是否启动时自动打开 Kiosk
+      "browser": "chromium-browser", // 浏览器命令
+      "flags": ["--kiosk", "--noerrdialogs", "--disable-infobars", "--disable-gpu", "--no-sandbox"]
+    }
+  },
+
+  // 日志
+  "logging": {
+    "web_file": "/var/log/lyric-app/lyric-web.log",
+    "level": "INFO"
   }
 }
 ```
@@ -266,163 +278,176 @@ sudo reboot
 
 ## 服务管理
 
+系统包含两个 systemd 服务：
+
+| 服务 | 说明 |
+|------|------|
+| `lyric-bt-agent` | 蓝牙自动配对代理，在 bluetooth 服务之后启动 |
+| `lyric-web` | 主应用服务（AVRCP 监听 + Web 服务器 + Chromium Kiosk），在 bt-agent 之后启动 |
+
 ```bash
 # 启动
-sudo systemctl start lyric-ble lyric-ui
+sudo systemctl start lyric-web
 
 # 停止
-sudo systemctl stop lyric-ble lyric-ui
+sudo systemctl stop lyric-web
 
 # 重启
-sudo systemctl restart lyric-ble lyric-ui
+sudo systemctl restart lyric-web
 
 # 查看状态
-sudo systemctl status lyric-ble
-sudo systemctl status lyric-ui
+sudo systemctl status lyric-web
+sudo systemctl status lyric-bt-agent
 
-# 开机自启（安装时已默认启用）
-sudo systemctl enable lyric-ble lyric-ui
-```
-
-## 日志查看
-
-日志采用 JSON 结构化格式，支持日志轮转。
-
-```bash
-# systemd 日志（推荐）
-journalctl -u lyric-ble -f
-journalctl -u lyric-ui -f
+# 查看实时日志
+journalctl -u lyric-web -f
+journalctl -u lyric-bt-agent -f
 
 # 查看最近 50 行
-journalctl -u lyric-ble -n 50
-
-# 应用日志文件
-tail -f /tmp/lyric-ble.log
-tail -f /tmp/lyric-ui.log
+journalctl -u lyric-web -n 50
 ```
+
+> `lyric-bt-agent` 通常不需要手动管理，开机自动启动。仅在配对异常时可能需要重启。
+
+---
+
+## 系统配置文件
+
+安装脚本会部署以下系统配置文件（均备份原有配置）：
+
+### BlueZ 配置：`/etc/bluetooth/main.conf`
+
+设置设备类型为蓝牙音箱（Class = 0x240438），始终可发现、可配对，开机自动上电适配器。
+
+### PulseAudio 配置：`/etc/pulse/default.pa`
+
+加载 `module-bluetooth-discover` 和 `module-bluetooth-policy` 模块，使 PulseAudio 能处理 A2DP 蓝牙音频连接。PipeWire 系统不需要此文件（wireplumber 自动管理）。
+
+### 蓝牙配对代理：`lyric-bt-agent.service`
+
+运行 `bt-agent --capability=NoInputNoOutput`，自动接受手机的蓝牙配对请求。手机点连接即配对，无需在开发板上手动确认。
 
 ---
 
 ## 故障排除
 
-### 蓝牙无法连接
+### 手机搜不到蓝牙设备
 
 ```bash
-# 1. 检查蓝牙服务
+# 检查蓝牙服务
 sudo systemctl status bluetooth
 
-# 2. 检查蓝牙适配器
-bluetoothctl list
+# 检查适配器状态
+bluetoothctl show
+# PowerState 应为 active，Discoverable 应为 yes
 
-# 3. 检查 BLE 服务日志
-journalctl -u lyric-ble -n 50
+# 手动设置
+sudo bluetoothctl power on
+sudo bluetoothctl discoverable on
+sudo bluetoothctl pairable on
 
-# 4. 确认用户在 bluetooth 组（安装脚本会自动添加）
-groups $USER
+# 检查 bt-agent 是否运行
+sudo systemctl status lyric-bt-agent
+```
+
+### 手机连接后没有声音
+
+```bash
+# 检查 PulseAudio / PipeWire
+pactl info        # PulseAudio
+wpctl status      # PipeWire
+
+# 检查音频输出设备
+pactl list sinks short
+
+# 检查 PULSE_SERVER 路径
+# 应为 /run/user/$(id -u)/pulse/native
+echo $PULSE_SERVER
+
+# 重启音频服务
+# PulseAudio:
+pulseaudio --kill && pulseaudio --start
+# PipeWire:
+systemctl --user restart pipewire pipewire-pulse wireplumber
 ```
 
 ### 歌词不显示
 
 ```bash
-# 1. 检查两个服务是否都在运行
-sudo systemctl status lyric-ble lyric-ui
+# 检查 AVRCP 是否读取到曲目信息
+journalctl -u lyric-web -f | grep "曲目变更"
 
-# 2. 检查 IPC Socket 是否存在
-ls -la /tmp/lyric.sock
+# 检查网络连接（歌词 API 需要联网）
+curl -s "https://music.163.com" | head -1
 
-# 3. 查看 UI 日志是否有错误
-journalctl -u lyric-ui -n 50
+# 检查歌词缓存目录
+ls /var/cache/lyric-app/lyrics/
 
-# 4. 检查显示驱动配置是否正确
-cat /etc/lyric-app/config.json | grep driver
+# 手动测试歌词查询
+curl -s "https://music.163.com/api/search/get?s=晴天&limit=1" | python3 -m json.tool
 ```
 
-### 音效不生效
+### Chromium 不显示 / 黑屏
 
 ```bash
-# 1. 检查 PulseAudio
-pulseaudio --check
-pactl info
+# 检查 Web 服务器是否运行
+curl -s http://localhost:8080 | head -1
 
-# 2. 确认 LADSPA 插件已安装
-dpkg -l | grep swh-plugins
-
-# 3. 确认用户在 pulse-access 组
-groups $USER
-```
-
-### 画面不显示（X11 模式）
-
-```bash
-# 确认 DISPLAY 环境变量
+# 检查显示环境
 echo $DISPLAY
+echo $WAYLAND_DISPLAY
+echo $XDG_RUNTIME_DIR
 
-# 确认有 X11 会话
-ps aux | grep Xorg
+# 检查 start-kiosk.sh 日志
+journalctl -u lyric-web | grep "lyric-kiosk"
 
-# 如果是 SSH 远程，需要设置 DISPLAY
-export DISPLAY=:0
+# 树莓派 Wayland 问题：
+# 确认 start-kiosk.sh 检测到 Wayland
+journalctl -u lyric-web | grep "检测到.*会话"
+
+# 手动测试浏览器
+DISPLAY=:0 chromium-browser --kiosk http://localhost:8080
+```
+
+### D-Bus 权限错误
+
+```bash
+# 确认用户在 bluetooth 组
+groups $USER
+
+# 如果没有 bluetooth 组，手动添加
+sudo usermod -a -G bluetooth,pulse-access $USER
+
+# 确认 enable-linger
+loginctl show-user $USER | grep Linger
+
+# 如果 Linger=no
+sudo loginctl enable-linger $USER
+
+# 重启后生效
+sudo reboot
 ```
 
 ---
 
-## 升级到新版本
-
-已安装旧版本时，无需卸载，直接升级即可。安装脚本会自动备份你的配置文件并替换可执行文件。
-
-### 升级步骤
-
-#### 1. 下载新版本
+## 升级
 
 ```bash
-# 下载新版本压缩包（替换为你实际的版本号）
+# 下载新版本
 wget https://github.com/Hjw202/lyric-app/releases/latest/download/lyric-app-arm64.tar.gz
 tar -xzf lyric-app-arm64.tar.gz
 cd lyric-app
-```
 
-#### 2. 运行升级命令
-
-```bash
+# 运行升级
 sudo ./install.sh --upgrade
 ```
 
-升级脚本会自动完成：
-
-| 步骤 | 说明 |
-|------|------|
-| ✅ 备份当前配置 | → `/etc/lyric-app/config.json.bak.20260707120000`（带时间戳） |
-| ✅ 保留你的配置 | 你的 `config.json` 不会被覆盖 |
-| ✅ 保存新版本默认配置 | → `/etc/lyric-app/config.json.default`（供参考） |
-| ✅ 替换可执行文件 | → `/opt/lyric-app/lyric_app` |
-| ✅ 更新 systemd 服务 | 服务文件会更新，自动配置运行用户和 UID |
-| ✅ 创建必要系统组 | `bluetooth`、`pulse-access` 组不存在则自动创建，并加入当前用户 |
-| ✅ 重载并重启服务 | `systemctl daemon-reload` + 服务自动重启，无需手动操作 |
-
-#### 3. 检查新版本配置变化（可选）
-
-如果新版本新增了配置项，可以对比查看：
+升级会自动备份当前配置文件（带时间戳），保留你的 `config.json` 不变，替换可执行文件和服务文件，自动重启服务。
 
 ```bash
+# 对比新旧配置差异
 diff /etc/lyric-app/config.json /etc/lyric-app/config.json.default
 ```
-
-将你需要的新配置项手动合并到 `/etc/lyric-app/config.json` 中，保存后会自动热重载生效。
-
-#### 4. 验证
-
-```bash
-# 检查服务状态
-sudo systemctl status lyric-ble lyric-ui
-
-# 查看日志确认新版本正常运行
-journalctl -u lyric-ble -n 20
-journalctl -u lyric-ui -n 20
-```
-
-> **不会丢失的内容：** 你的配置文件、日志文件、systemd 服务状态。
->
-> **会被替换的内容：** 可执行文件、systemd 服务文件。
 
 ---
 
@@ -432,7 +457,7 @@ journalctl -u lyric-ui -n 20
 sudo ./install.sh --uninstall
 ```
 
-这会停止所有服务、删除程序文件、配置文件和日志。如需保留配置，手动备份 `/etc/lyric-app/config.json`。
+停止所有服务，删除程序文件、配置文件、缓存和日志。BlueZ 和 PulseAudio 的原始配置备份（`.lyric-bak` 文件）会尝试恢复。
 
 ---
 
@@ -443,36 +468,58 @@ sudo ./install.sh --uninstall
 ```bash
 git clone https://github.com/Hjw202/lyric-app.git
 cd lyric-app
+
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
-# 终端 1：BLE 服务
-python lyric_app.py ble
+# 直接运行（无参数默认 Web 模式）
+python lyric_app.py
+```
 
-# 终端 2：UI 服务
-python lyric_app.py ui
+### 项目结构
+
+```
+lyric-app/
+├── lyric_app.py              # 主入口（单进程：AVRCP + WebServer + Kiosk）
+├── lyric_app.spec            # PyInstaller 打包配置
+├── install.sh                # 安装/升级/卸载脚本
+├── requirements.txt          # Python 依赖
+├── modules/
+│   ├── avrcp_controller.py   # AVRCP D-Bus 控制器（读取曲目/进度/状态）
+│   ├── lyrics_fetcher.py     # 歌词查询（网易云 API + 缓存）
+│   ├── lrc_parser.py         # LRC 格式解析
+│   ├── lyric_sync.py         # 歌词同步引擎（二分查找 + 时钟插值）
+│   ├── web_server.py         # aiohttp Web 服务器 + WebSocket
+│   ├── audio_effects.py      # PulseAudio 音效控制
+│   ├── cmd_handler.py        # 浏览器命令处理
+│   └── config_manager.py     # 配置管理 + 热重载
+├── web/
+│   ├── index.html            # 歌词页面
+│   ├── app.js                # WebSocket 客户端 + 逐行高亮
+│   └── style.css             # 样式（当前行高亮 + 平滑滚动）
+├── scripts/
+│   ├── start-kiosk.sh        # Chromium Kiosk 启动（Wayland/X11 自动检测）
+│   └── bt-agent.sh           # 蓝牙自动配对代理
+├── systemd/
+│   ├── lyric-web.service     # 主应用服务
+│   └── lyric-bt-agent.service# 配对代理服务
+├── config/
+│   ├── config.json           # 应用配置
+│   ├── bluetooth/main.conf   # BlueZ A2DP sink 配置
+│   └── pulse/default.pa      # PulseAudio 蓝牙模块配置
+└── utils/
+    └── logger.py             # 结构化日志
 ```
 
 ### 打包
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --add-data "config/config.json:config" lyric_app.py
+pyinstaller lyric_app.spec
 # 输出：dist/lyric_app
 ```
 
-### CI/CD
-
-推送 tag 自动触发 GitHub Actions 构建：
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-构建产物：
-- `lyric_app_arm64` — ARM64 版本
-- `lyric_app_armhf` — ARM32 版本
+> 必须使用 `lyric_app.spec` 而非 `--onefile` 命令行参数，否则 spec 中的 hiddenimports 等配置会被忽略。
 
 ---
 

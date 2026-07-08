@@ -1,0 +1,25 @@
+[Unit]
+Description=Bluetooth Auto-Pairing Agent (Lyric Speaker)
+After=bluetooth.service
+Requires=bluetooth.service
+BindsTo=bluetooth.service
+
+[Service]
+Type=simple
+User=__USER__
+Group=bluetooth
+ExecStartPre=/bin/sleep 1
+ExecStart=/opt/lyric-app/scripts/bt-agent.sh
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lyric-bt-agent
+
+# D-Bus 系统总线（bt-agent 通过系统总线与 BlueZ 通信）
+Environment=DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+Environment=XDG_RUNTIME_DIR=/run/user/__UID__
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/__UID__/bus
+
+[Install]
+WantedBy=multi-user.target

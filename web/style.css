@@ -1,0 +1,129 @@
+:root {
+    --text-color: rgb(0, 255, 0);
+    --text-dim-color: rgba(0, 255, 0, 0.35);
+    --text-far-color: rgba(255, 255, 255, 0.12);
+    --bg-color: rgb(0, 0, 0);
+    --font-size: 48px;
+    --line-spacing: 10px;
+    --padding: 40px;
+    --transition-speed: 0.4s;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    font-family: 'WenQuanYi Micro Hei', 'Noto Sans CJK SC', 'Droid Sans Fallback', 'Microsoft YaHei', sans-serif;
+    cursor: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+#song-title {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 20px;
+    color: rgba(255, 255, 255, 0.3);
+    z-index: 10;
+    transition: opacity 0.5s ease;
+}
+
+#song-title.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#lyrics {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    height: 100%;
+    padding: calc(var(--padding) + 40px) var(--padding) var(--padding);
+    overflow-y: auto;
+    scroll-behavior: smooth;
+}
+
+#lyrics::-webkit-scrollbar {
+    display: none;
+}
+
+.lyric-line {
+    font-size: var(--font-size);
+    color: var(--text-far-color);
+    text-align: center;
+    max-width: 90%;
+    margin-bottom: var(--line-spacing);
+    line-height: 1.5;
+    transition: color var(--transition-speed) ease,
+                opacity var(--transition-speed) ease,
+                text-shadow var(--transition-speed) ease,
+                transform var(--transition-speed) ease;
+    transform: scale(0.9);
+}
+
+/* 当前行：高亮 + 发光 + 放大 */
+.lyric-line.current {
+    color: var(--text-color);
+    text-shadow: 0 0 30px var(--text-color);
+    transform: scale(1);
+    font-weight: 600;
+}
+
+/* 上一行：中等亮度 */
+.lyric-line.prev {
+    color: var(--text-dim-color);
+    transform: scale(0.95);
+}
+
+/* 下一行：中等亮度 */
+.lyric-line.next {
+    color: var(--text-dim-color);
+    transform: scale(0.95);
+}
+
+/* 附近行（±2）：微弱可见 */
+.lyric-line.near {
+    color: var(--text-far-color);
+}
+
+.lyric-empty {
+    font-size: calc(var(--font-size) * 0.6);
+    color: rgba(255, 255, 255, 0.15);
+    margin-top: 40vh;
+}
+
+#status {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 100;
+    transition: opacity 0.5s ease;
+}
+
+#status.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.status-text {
+    font-size: 24px;
+    color: #888;
+    font-family: 'WenQuanYi Micro Hei', 'Noto Sans CJK SC', sans-serif;
+}
