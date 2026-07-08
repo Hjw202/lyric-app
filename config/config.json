@@ -43,5 +43,10 @@
   },
   "ipc": {
     "socket_path": "/tmp/lyric.sock"
+  },
+  "logging": {
+    "ble_file": "/var/log/lyric-app/lyric-ble.log",
+    "ui_file": "/var/log/lyric-app/lyric-ui.log",
+    "level": "INFO"
   }
 }

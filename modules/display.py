@@ -230,10 +230,10 @@ class Display:
         color = self.style.get('bg_color', [0, 0, 0])
         return tuple(color[:3])
 
-    def _render_text_cached(self, text: str, color: Tuple[int, int, int], font: Optional[pygame.font.Font] = None) -> pygame.Surface:
+    def _render_text_cached(self, text: str, color: Tuple[int, int, int], font: Optional[pygame.font.Font] = None, font_size: int = 48) -> pygame.Surface:
         """带缓存的文本渲染"""
         font = font or self.font
-        cache_key = f"{text}_{color}_{self.style.get('font_size', 48)}"
+        cache_key = f"{text}_{color}_{font_size}"
         cached = self._text_cache.get(cache_key)
         if cached:
             return cached
@@ -269,6 +269,7 @@ class Display:
         text_color = tuple(style.get('color', [0, 255, 0]))
         padding = style.get('padding', 40)
         line_spacing = style.get('line_spacing', 10)
+        font_size = style.get('font_size', 48)
 
         screen_width = self.screen.get_width()
         screen_height = self.screen.get_height()
@@ -295,7 +296,7 @@ class Display:
             # 渲染每一行
             for i, line in enumerate(lines):
                 if line:
-                    text_surface = self._render_text_cached(line, text_color, current_font)
+                    text_surface = self._render_text_cached(line, text_color, current_font, font_size)
                     text_rect = text_surface.get_rect()
                     text_rect.centerx = screen_width // 2
                     text_rect.top = start_y + i * (line_height + line_spacing)
@@ -308,7 +309,7 @@ class Display:
             # 无歌词时显示提示
             hint_text = "等待连接..."
             hint_color = (128, 128, 128)
-            hint_surface = self._render_text_cached(hint_text, hint_color, current_font)
+            hint_surface = self._render_text_cached(hint_text, hint_color, current_font, font_size)
             hint_rect = hint_surface.get_rect(center=self.screen.get_rect().center)
             self.screen.blit(hint_surface, hint_rect)
             self._last_rendered_lines.append((hint_text, hint_surface, hint_rect))

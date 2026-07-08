@@ -167,12 +167,25 @@ class BLEServer:
             logger.info("已连接到 D-Bus 系统总线")
 
             # 创建歌词服务
+            lyric_service_uuid = self.config.get('lyric_service_uuid')
+            if not lyric_service_uuid:
+                raise ValueError("配置缺少 ble.lyric_service_uuid")
+            lyric_char_uuid = self.config.get('lyric_char_uuid')
+            if not lyric_char_uuid:
+                raise ValueError("配置缺少 ble.lyric_char_uuid")
+            control_service_uuid = self.config.get('control_service_uuid')
+            if not control_service_uuid:
+                raise ValueError("配置缺少 ble.control_service_uuid")
+            control_char_uuid = self.config.get('control_char_uuid')
+            if not control_char_uuid:
+                raise ValueError("配置缺少 ble.control_char_uuid")
+
             lyric_service = Service(
-                uuid=self.config['lyric_service_uuid'],
+                uuid=lyric_service_uuid,
                 primary=True,
             )
             lyric_char = LyricCharacteristic(
-                uuid=self.config['lyric_char_uuid'],
+                uuid=lyric_char_uuid,
                 on_receive=self._handle_lyric,
                 stats=self._stats,
             )
@@ -180,11 +193,11 @@ class BLEServer:
 
             # 创建控制服务
             control_service = Service(
-                uuid=self.config['control_service_uuid'],
+                uuid=control_service_uuid,
                 primary=True,
             )
             control_char = ControlCharacteristic(
-                uuid=self.config['control_char_uuid'],
+                uuid=control_char_uuid,
                 on_receive=self._handle_command,
                 stats=self._stats,
             )
@@ -202,8 +215,8 @@ class BLEServer:
             self.advertisement = Advertisement(
                 localName=device_name,
                 serviceUUIDs=[
-                    self.config['lyric_service_uuid'],
-                    self.config['control_service_uuid'],
+                    lyric_service_uuid,
+                    control_service_uuid,
                 ],
             )
 

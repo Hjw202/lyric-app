@@ -42,7 +42,7 @@ def load_config_path() -> str:
     # PyInstaller 打包路径
     if getattr(sys, 'frozen', False):
         bundle_dir = Path(sys._MEIPASS)
-        config_paths.insert(0, bundle_dir / 'config.json')
+        config_paths.insert(0, bundle_dir / 'config' / 'config.json')
 
     for config_path in config_paths:
         if config_path.exists():
@@ -62,7 +62,7 @@ def run_ble(config_path: str):
 
     # 初始化日志
     global logger
-    log_file = config.get('logging', {}).get('file', '/tmp/lyric-ble.log')
+    log_file = config.get('logging', {}).get('ble_file', '/var/log/lyric-app/lyric-ble.log')
     logger = MetricsLogger(setup_logger(
         'lyric-ble',
         log_file=log_file,
@@ -169,7 +169,7 @@ def run_ui(config_path: str):
 
     # 初始化日志
     global logger
-    log_file = config.get('logging', {}).get('file', '/tmp/lyric-ui.log')
+    log_file = config.get('logging', {}).get('ui_file', '/var/log/lyric-app/lyric-ui.log')
     logger = MetricsLogger(setup_logger(
         'lyric-ui',
         log_file=log_file,
@@ -221,6 +221,14 @@ def run_ui(config_path: str):
 
     display._setup_display()
     display._running = True
+
+    # 信号处理：systemd 发送 SIGTERM 时优雅退出
+    def ui_signal_handler(signum, frame):
+        logger.logger.info(f"收到信号 {signal.Signals(signum).name}，准备退出")
+        display._running = False
+
+    signal.signal(signal.SIGTERM, ui_signal_handler)
+    signal.signal(signal.SIGINT, ui_signal_handler)
 
     try:
         while display._running:

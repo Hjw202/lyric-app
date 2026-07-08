@@ -37,6 +37,7 @@ ENV/
 # PyInstaller
 *.manifest
 *.spec
+!lyric_app.spec
 
 # Logs
 *.log

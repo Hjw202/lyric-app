@@ -299,7 +299,7 @@ class IPCClient:
         self._running = False
         self._connected = False
         self._stats = IPCStats()
-        self._send_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
+        self._send_queue: Optional[asyncio.Queue] = None  # 在 connect() 中创建，绑定正确的 event loop
         self._send_task: Optional[asyncio.Task] = None
 
     @property
@@ -313,6 +313,7 @@ class IPCClient:
     async def connect(self):
         """连接到服务端"""
         self._running = True
+        self._send_queue = asyncio.Queue(maxsize=1000)  # 在事件循环内创建，绑定正确的 loop
         await self._connect_with_retry()
 
     async def _connect_with_retry(self):
@@ -386,6 +387,9 @@ class IPCClient:
         """发送消息循环"""
         while self._running:
             try:
+                if self._send_queue is None:
+                    await asyncio.sleep(0.5)
+                    continue
                 message = await asyncio.wait_for(self._send_queue.get(), timeout=1.0)
                 await self._do_send(message)
             except asyncio.TimeoutError:
@@ -415,7 +419,7 @@ class IPCClient:
 
     async def send(self, message: str) -> bool:
         """发送消息（异步队列）"""
-        if not self._connected:
+        if not self._connected or self._send_queue is None:
             logger.warning("未连接，无法发送消息")
             return False
 

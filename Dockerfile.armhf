@@ -3,12 +3,13 @@ FROM arm32v7/python:3.11-slim
 
 WORKDIR /app
 
-# 安装系统依赖
+# 安装系统依赖（含 procps 提供 pgrep）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     pkg-config \
     python3-dev \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # 升级 pip
@@ -21,5 +22,5 @@ RUN pip install --no-cache-dir -r requirements.txt -r requirements-build.txt
 # 复制项目文件
 COPY . .
 
-# 打包
-RUN pyinstaller --onefile --add-data "config/config.json:config" lyric_app.py
+# 使用 spec 文件打包（包含 hiddenimports 等配置）
+RUN pyinstaller lyric_app.spec

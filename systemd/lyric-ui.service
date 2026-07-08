@@ -1,8 +1,7 @@
 [Unit]
 Description=Lyric Speaker UI Service
-After=lyric-ble.service network.target graphical.target
-Wants=lyric-ble.service
-After=pulseaudio.service
+After=lyric-ble.service network.target graphical.target pulseaudio.service
+Wants=lyric-ble.service pulseaudio.service
 
 [Service]
 Type=simple
