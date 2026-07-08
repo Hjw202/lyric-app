@@ -95,10 +95,11 @@ jobs:
           # ARM64 包
           mkdir -p release-arm64
           cd release-arm64
-          cp ../lyric_app_arm64/lyric_app_arm64 .
-          cp ../config/config.json .
+          cp ../lyric_app_arm64/lyric_app_arm64 ./lyric_app
           cp ../install.sh .
+          cp -r ../config .
           cp -r ../systemd .
+          cp -r ../scripts .
           tar -czf ../lyric-app-${{ github.ref_name }}-arm64.tar.gz *
           cd ..
 
