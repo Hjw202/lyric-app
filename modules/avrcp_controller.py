@@ -28,6 +28,11 @@ def _unwrap(variant):
     return variant
 
 
+def _unwrap_dict(d):
+    """解开 dict 中所有 Variant 包装的值（Track 属性是 a{sv}，每个值都是 Variant）"""
+    return {k: _unwrap(v) for k, v in d.items()}
+
+
 @dataclass
 class TrackInfo:
     """当前曲目信息"""
@@ -167,6 +172,7 @@ class AVRCPController:
         if 'Track' in changed:
             track_dict = _unwrap(changed['Track'])
             if isinstance(track_dict, dict):
+                track_dict = _unwrap_dict(track_dict)
                 new_track = TrackInfo(
                     title=track_dict.get('Title', ''),
                     artist=track_dict.get('Artist', ''),
@@ -208,6 +214,7 @@ class AVRCPController:
             try:
                 track_dict = _unwrap(await props.call_get('org.bluez.MediaPlayer1', 'Track'))
                 if isinstance(track_dict, dict):
+                    track_dict = _unwrap_dict(track_dict)
                     track = TrackInfo(
                         title=track_dict.get('Title', ''),
                         artist=track_dict.get('Artist', ''),
